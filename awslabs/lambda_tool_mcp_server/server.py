@@ -91,6 +91,7 @@ mcp = ChukMCPServer(
     version='2.0.17',
     description="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
+    transport='stdio',
 )
 
 
