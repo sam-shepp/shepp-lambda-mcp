@@ -38,10 +38,8 @@ From a **security** perspective, this approach implements segregation of duties 
 Install directly from the GitHub repository:
 
 ```bash
-uvx --from git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp shepp-lambda-mcp
+uvx --from git+https://github.com/sam-shepp/shepp-lambda-mcp shepp-lambda-mcp
 ```
-
-Replace `YOUR_USERNAME` with your GitHub username once you've pushed the repository.
 
 ## Configuration
 
@@ -56,7 +54,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
   "mcpServers": {
     "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp", "shepp-lambda-mcp"],
+      "args": ["--from", "git+https://github.com/sam-shepp/shepp-lambda-mcp", "shepp-lambda-mcp"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -115,7 +113,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "tool",
         "run",
         "--from",
-        "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp",
+        "git+https://github.com/sam-shepp/shepp-lambda-mcp",
         "shepp-lambda-mcp.exe"
       ],
       "env": {

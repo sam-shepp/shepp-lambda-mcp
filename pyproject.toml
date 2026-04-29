@@ -34,11 +34,11 @@ override-dependencies = [
 "shepp-lambda-mcp" = "awslabs.lambda_tool_mcp_server.server:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp"
-Documentation = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/blob/main/README.md"
-Source = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp.git"
-"Bug Tracker" = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/issues"
-Changelog = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/sam-shepp/shepp-lambda-mcp"
+Documentation = "https://github.com/sam-shepp/shepp-lambda-mcp/blob/main/README.md"
+Source = "https://github.com/sam-shepp/shepp-lambda-mcp.git"
+"Bug Tracker" = "https://github.com/sam-shepp/shepp-lambda-mcp/issues"
+Changelog = "https://github.com/sam-shepp/shepp-lambda-mcp/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
