@@ -35,7 +35,19 @@ From a **security** perspective, this approach implements segregation of duties 
 
 ## Installation
 
-Install directly from the GitHub repository:
+### Option 1: Install from PyPI (Recommended)
+
+```bash
+uvx shepp-lambda-mcp
+```
+
+Or install in your project:
+
+```bash
+uv pip install shepp-lambda-mcp
+```
+
+### Option 2: Install from GitHub
 
 ```bash
 uvx --from git+https://github.com/sam-shepp/shepp-lambda-mcp shepp-lambda-mcp
@@ -54,7 +66,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
   "mcpServers": {
     "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/sam-shepp/shepp-lambda-mcp", "shepp-lambda-mcp"],
+      "args": ["shepp-lambda-mcp"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -78,7 +90,7 @@ You can pass AWS credentials directly without using a profile. This is now the p
   "mcpServers": {
     "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/sam-shepp/shepp-lambda-mcp", "shepp-lambda-mcp"],
+      "args": ["shepp-lambda-mcp"],
       "env": {
         "AWS_ACCESS_KEY_ID": "your-access-key-id",
         "AWS_SECRET_ACCESS_KEY": "your-secret-access-key",
@@ -108,13 +120,9 @@ For Windows users, the MCP server configuration format is slightly different:
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "tool",
-        "run",
-        "--from",
-        "git+https://github.com/sam-shepp/shepp-lambda-mcp",
-        "shepp-lambda-mcp.exe"
+        "shepp-lambda-mcp"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
