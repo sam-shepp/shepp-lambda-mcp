@@ -1,6 +1,8 @@
-# AWS Lambda Tool MCP Server
+# Shepp Lambda MCP Server
 
 A Model Context Protocol (MCP) server for AWS Lambda to select and run Lambda function as MCP tools without code changes.
+
+**Note**: This is a fork with enhanced authentication flexibility - AWS profile is optional, you can use direct AWS credentials instead.
 
 ## Features
 
@@ -33,20 +35,28 @@ From a **security** perspective, this approach implements segregation of duties 
 
 ## Installation
 
-| Kiro | Cursor | VS Code |
-|:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.lambda-tool-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.lambda-tool-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FUNCTION_PREFIX%22%3A%22your-function-prefix%22%2C%22FUNCTION_LIST%22%3A%22your-first-function%2C%20your-second-function%22%2C%22FUNCTION_TAG_KEY%22%3A%22your-tag-key%22%2C%22FUNCTION_TAG_VALUE%22%3A%22your-tag-value%22%2C%22FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY%22%3A%22your-function-tag-for-input-schema%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.lambda-tool-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMubGFtYmRhLXRvb2wtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZVTkNUSU9OX1BSRUZJWCI6InlvdXItZnVuY3Rpb24tcHJlZml4IiwiRlVOQ1RJT05fTElTVCI6InlvdXItZmlyc3QtZnVuY3Rpb24sIHlvdXItc2Vjb25kLWZ1bmN0aW9uIiwiRlVOQ1RJT05fVEFHX0tFWSI6InlvdXItdGFnLWtleSIsIkZVTkNUSU9OX1RBR19WQUxVRSI6InlvdXItdGFnLXZhbHVlIiwiRlVOQ1RJT05fSU5QVVRfU0NIRU1BX0FSTl9UQUdfS0VZIjoieW91ci1mdW5jdGlvbi10YWctZm9yLWlucHV0LXNjaGVtYSJ9fQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Lambda%20Tool%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.lambda-tool-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FUNCTION_PREFIX%22%3A%22your-function-prefix%22%2C%22FUNCTION_LIST%22%3A%22your-first-function%2C%20your-second-function%22%2C%22FUNCTION_TAG_KEY%22%3A%22your-tag-key%22%2C%22FUNCTION_TAG_VALUE%22%3A%22your-tag-value%22%2C%22FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY%22%3A%22your-function-tag-for-input-schema%22%7D%7D) |
+Install directly from the GitHub repository:
+
+```bash
+uvx --from git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp shepp-lambda-mcp
+```
+
+Replace `YOUR_USERNAME` with your GitHub username once you've pushed the repository.
+
+## Configuration
+
+
 
 Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`).
 
-### Option 1: Using AWS Profile (Recommended for local development)
+### Option 1: Using AWS Profile (Optional - for local development)
 
 ```json
 {
   "mcpServers": {
-    "awslabs.lambda-tool-mcp-server": {
+    "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["awslabs.lambda-tool-mcp-server@latest"],
+      "args": ["--from", "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp", "shepp-lambda-mcp"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -61,16 +71,16 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
 }
 ```
 
-### Option 2: Using Direct AWS Credentials
+### Option 2: Using Direct AWS Credentials (Recommended for flexibility)
 
-You can pass AWS credentials directly without using a profile:
+You can pass AWS credentials directly without using a profile. This is now the preferred method as it provides more flexibility:
 
 ```json
 {
   "mcpServers": {
-    "awslabs.lambda-tool-mcp-server": {
+    "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["awslabs.lambda-tool-mcp-server@latest"],
+      "args": ["--from", "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp", "shepp-lambda-mcp"],
       "env": {
         "AWS_ACCESS_KEY_ID": "your-access-key-id",
         "AWS_SECRET_ACCESS_KEY": "your-secret-access-key",
@@ -96,7 +106,7 @@ For Windows users, the MCP server configuration format is slightly different:
 ```json
 {
   "mcpServers": {
-    "awslabs.lambda-tool-mcp-server": {
+    "shepp-lambda-mcp": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -105,8 +115,8 @@ For Windows users, the MCP server configuration format is slightly different:
         "tool",
         "run",
         "--from",
-        "awslabs.lambda-tool-mcp-server@latest",
-        "awslabs.lambda-tool-mcp-server.exe"
+        "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp",
+        "shepp-lambda-mcp.exe"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
@@ -134,7 +144,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 ```json
   {
     "mcpServers": {
-      "awslabs.lambda-tool-mcp-server": {
+      "shepp-lambda-mcp": {
         "command": "docker",
         "args": [
           "run",
@@ -154,7 +164,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY=your-function-tag-for-input-schema",
           "--env-file",
           "/full/path/to/file/above/.env",
-          "awslabs/lambda-tool-mcp-server:latest"
+          "shepp-lambda-mcp:latest"
         ],
         "env": {},
         "disabled": false,
@@ -168,13 +178,15 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 ## AWS Authentication
 
-The server supports multiple authentication methods with the following priority:
+**Important**: AWS Profile is now optional! The server supports multiple authentication methods with the following priority:
 
-1. **Direct Credentials** (highest priority): Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`
-2. **AWS Profile**: Set `AWS_PROFILE` to use a named profile from your AWS credentials file
+1. **Direct Credentials** (highest priority, recommended): Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`
+2. **AWS Profile** (optional): Set `AWS_PROFILE` to use a named profile from your AWS credentials file
 3. **Default Credentials Chain** (lowest priority): Uses the standard AWS SDK credential resolution (environment variables, EC2 instance profile, etc.)
 
 The `AWS_REGION` defaults to `us-east-1` if not specified.
+
+**Note**: You can now use this server without configuring an AWS profile - simply provide your access keys directly in the configuration.
 
 You can specify `FUNCTION_PREFIX`, `FUNCTION_LIST`, or both. If both are empty, all functions pass the name check.
 After the name check, if both `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` are set, functions are further filtered by tag (with key=value).
