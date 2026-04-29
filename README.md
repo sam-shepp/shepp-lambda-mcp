@@ -80,7 +80,7 @@ You can pass AWS credentials directly without using a profile. This is now the p
   "mcpServers": {
     "shepp-lambda-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/shepp-lambda-mcp", "shepp-lambda-mcp"],
+      "args": ["--from", "git+https://github.com/sam-shepp/shepp-lambda-mcp", "shepp-lambda-mcp"],
       "env": {
         "AWS_ACCESS_KEY_ID": "your-access-key-id",
         "AWS_SECRET_ACCESS_KEY": "your-secret-access-key",

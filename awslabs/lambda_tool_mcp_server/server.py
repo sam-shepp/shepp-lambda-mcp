@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs lambda MCP Server implementation."""
+"""awslabs lambda MCP Server implementation using ChukMCPServer."""
 
 import boto3
 import json
 import logging
 import os
 import re
-from mcp.server.fastmcp import Context, FastMCP
+from chuk_mcp_server import ChukMCPServer
 from typing import Optional
 
 
@@ -86,11 +86,11 @@ else:
 lambda_client = session.client('lambda')
 schemas_client = session.client('schemas')
 
-mcp = FastMCP(
-    'awslabs.lambda-tool-mcp-server',
-    instructions="""Use AWS Lambda functions to improve your answers.
+mcp = ChukMCPServer(
+    name='shepp-lambda-mcp',
+    version='2.0.17',
+    description="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
-    dependencies=['pydantic', 'boto3'],
 )
 
 
@@ -133,9 +133,9 @@ def format_lambda_response(function_name: str, payload: bytes) -> str:
         return f'Function {function_name} returned payload: {payload}'
 
 
-async def invoke_lambda_function_impl(function_name: str, parameters: dict, ctx: Context) -> str:
+async def invoke_lambda_function_impl(function_name: str, parameters: dict) -> str:
     """Tool that invokes an AWS Lambda function with a JSON payload."""
-    await ctx.info(f'Invoking {function_name} with parameters: {parameters}')
+    logger.info(f'Invoking {function_name} with parameters: {parameters}')
 
     response = lambda_client.invoke(
         FunctionName=function_name,
@@ -143,13 +143,13 @@ async def invoke_lambda_function_impl(function_name: str, parameters: dict, ctx:
         Payload=json.dumps(parameters),
     )
 
-    await ctx.info(f'Function {function_name} returned with status code: {response["StatusCode"]}')
+    logger.info(f'Function {function_name} returned with status code: {response["StatusCode"]}')
 
     if 'FunctionError' in response:
         error_message = (
             f'Function {function_name} returned with error: {response["FunctionError"]}'
         )
-        await ctx.error(error_message)
+        logger.error(error_message)
         return error_message
 
     payload = response['Payload'].read()
@@ -207,24 +207,21 @@ def create_lambda_tool(function_name: str, description: str, schema_arn: Optiona
     # Create a meaningful tool name
     tool_name = sanitize_tool_name(function_name)
 
-    # Define the inner function
-    async def lambda_function(parameters: dict, ctx: Context) -> str:
-        """Tool for invoking a specific AWS Lambda function with parameters."""
-        # Use the same implementation as the generic invoke function
-        return await invoke_lambda_function_impl(function_name, parameters, ctx)
-
-    # Set the function's documentation
+    # Build the full description with schema if available
+    full_description = description
     if schema_arn:
         schema = get_schema_from_registry(schema_arn)
         if schema:
-            #  We add the schema to the description because mcp.tool does not expose overriding the tool schema.
-            description_with_schema = f'{description}\n\nInput Schema:\n{schema}'
-            lambda_function.__doc__ = description_with_schema
+            full_description = f'{description}\n\nInput Schema:\n{schema}'
             logger.info(f'Added schema from registry to description for function {function_name}')
-        else:
-            lambda_function.__doc__ = description
-    else:
-        lambda_function.__doc__ = description
+
+    # Define the inner function with proper docstring
+    async def lambda_function(parameters: dict) -> str:
+        """Tool for invoking a specific AWS Lambda function with parameters."""
+        return await invoke_lambda_function_impl(function_name, parameters)
+
+    # Set the function's documentation
+    lambda_function.__doc__ = full_description
 
     logger.info(f'Registering tool {tool_name} with description: {description}')
     # Apply the decorator manually with the specific name

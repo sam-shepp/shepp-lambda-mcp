@@ -1,27 +1,25 @@
 [project]
-name = "awslabs.lambda-tool-mcp-server"
+name = "shepp-lambda-mcp"
 version = "2.0.17"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda Tools"
+description = "A Model Context Protocol (MCP) server for AWS Lambda Tools using ChukMCPServer"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.37.27",
-    "mcp[cli]>=1.23.0",
+    "chuk-mcp-server>=0.25.0",
     "pydantic>=2.10.6",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 
 authors = [
-    {name = "Amazon Web Services"},
-    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Sam Sheppard"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -33,14 +31,14 @@ override-dependencies = [
 ]
 
 [project.scripts]
-"awslabs.lambda-tool-mcp-server" = "awslabs.lambda_tool_mcp_server.server:main"
+"shepp-lambda-mcp" = "awslabs.lambda_tool_mcp_server.server:main"
 
 [project.urls]
-Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/lambda-tool-mcp-server/"
-Source = "https://github.com/awslabs/mcp.git"
-"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/lambda-tool-mcp-server/CHANGELOG.md"
+Homepage = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp"
+Documentation = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/blob/main/README.md"
+Source = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp.git"
+"Bug Tracker" = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/issues"
+Changelog = "https://github.com/YOUR_USERNAME/shepp-lambda-mcp/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
