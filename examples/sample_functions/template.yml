@@ -1,154 +1,77 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Sample functions for MCP servers.
+Description: >
+  Sample Lambda functions demonstrating MCP Server tool discovery protocol
+
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+    Runtime: python3.13
+    Architectures:
+      - arm64
 
 Resources:
-
-  CustomerInfoFromId:
+  # Legacy single-tool functions (backward compatibility examples)
+  CustomerInfoFromIdFunction:
     Type: AWS::Serverless::Function
-    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
-    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
-    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
     Properties:
-      CodeUri: ./customer-info-from-id
-      Description: Customer status from { 'customerId' }
-      MemorySize: 128
-      Timeout: 3
+      CodeUri: customer-info-from-id/
       Handler: app.lambda_handler
-      Runtime: python3.13
-      Architectures:
-        - arm64
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W89
-            reason: "Because this is an example, there is no requirement to run within a VPC"
-          - id: W92
-            reason: "Because this is an example, there is no requirement to reserve concurrency"
+      Description: Retrieve customer status on the CRM system based on { 'customerId' }
 
-  CustomerIdFromEmail:
+  CustomerIdFromEmailFunction:
     Type: AWS::Serverless::Function
-    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
-    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
-    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
     Properties:
-      CodeUri: ./customer-id-from-email
-      Description: Get customer ID from { 'email' }
-      MemorySize: 128
-      Timeout: 3
+      CodeUri: customer-id-from-email/
       Handler: app.lambda_handler
-      Runtime: python3.13
-      Architectures:
-        - arm64
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W89
-            reason: "Because this is an example, there is no requirement to run within a VPC"
-          - id: W92
-            reason: "Because this is an example, there is no requirement to reserve concurrency"
+      Description: Retrieve customer ID on the CRM system based on { 'email' }
 
-  SchemaRegistry:
-    Type: AWS::EventSchemas::Registry
-    Properties:
-      Description: Registry for Lambda function input schemas
-
-  CustomerCreateSchema:
-    Type: AWS::EventSchemas::Schema
-    Properties:
-      RegistryName:
-        Fn::GetAtt: [SchemaRegistry, RegistryName]
-      Description: Input schema for creating a new customer
-      Type: JSONSchemaDraft4
-      Content: |
-        {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "type": "object",
-            "title": "CustomerCreateInput",
-            "description": "Input schema for creating a new customer",
-            "required": ["name", "email", "phone"],
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Customer's full name"
-                },
-                "email": {
-                    "type": "string",
-                    "format": "email",
-                    "description": "Customer's email address"
-                },
-                "phone": {
-                    "type": "string",
-                    "pattern": "^\\+[1-9]\\d{1,14}$",
-                    "description": "Customer's phone number in E.164 format"
-                },
-                "address": {
-                    "type": "object",
-                    "description": "Customer's address (optional)",
-                    "properties": {
-                        "street": {
-                            "type": "string",
-                            "description": "Street address"
-                        },
-                        "city": {
-                            "type": "string",
-                            "description": "City name"
-                        },
-                        "state": {
-                            "type": "string",
-                            "description": "State code"
-                        },
-                        "zipCode": {
-                            "type": "string",
-                            "pattern": "^\\d{5}(-\\d{4})?$",
-                            "description": "ZIP code"
-                        }
-                    },
-                    "required": ["street", "city", "state", "zipCode"],
-                    "additionalProperties": false
-                }
-            },
-            "additionalProperties": false
-        }
-
-  CustomerCreate:
+  CustomerCreateFunction:
     Type: AWS::Serverless::Function
-    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
-    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
-    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
     Properties:
-      CodeUri: ./customer-create
-      Description: Create a new customer
-      MemorySize: 128
-      Timeout: 3
+      CodeUri: customer-create/
       Handler: app.lambda_handler
-      Runtime: python3.13
-      Architectures:
-        - arm64
+      Description: Create a new customer on the CRM system based on { 'name', 'email', 'phone', 'address' (optional) }
+
+  # New multi-tool function with tool discovery protocol
+  CustomerManagementFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: customer-management/
+      Handler: app.lambda_handler
+      Description: Customer management system with multiple tools - supports tool discovery protocol
       Tags:
-        tool-input-schema-arn:
-          Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W89
-            reason: "Because this is an example, there is no requirement to run within a VPC"
-          - id: W92
-            reason: "Because this is an example, there is no requirement to reserve concurrency"
+        MCP: "enabled"
+        ToolDiscovery: "v2.1.0"
 
 Outputs:
+  # Legacy functions
+  CustomerInfoFromIdFunction:
+    Description: "Customer Info From ID Lambda Function ARN"
+    Value: !GetAtt CustomerInfoFromIdFunction.Arn
+  CustomerInfoFromIdFunctionIamRole:
+    Description: "Implicit IAM Role created for Customer Info From ID function"
+    Value: !GetAtt CustomerInfoFromIdFunctionRole.Arn
 
-  CustomerInfoFromId:
-    Description: "CustomerInfoFromId Function ARN"
-    Value:
-      Fn::GetAtt: [CustomerInfoFromId,Arn]
+  CustomerIdFromEmailFunction:
+    Description: "Customer ID From Email Lambda Function ARN"
+    Value: !GetAtt CustomerIdFromEmailFunction.Arn
+  CustomerIdFromEmailFunctionIamRole:
+    Description: "Implicit IAM Role created for Customer ID From Email function"
+    Value: !GetAtt CustomerIdFromEmailFunctionRole.Arn
 
-  CustomerIdFromEmail:
-    Description: "CustomerIdFromEmail Function ARN"
-    Value:
-      Fn::GetAtt: [CustomerIdFromEmail,Arn]
+  CustomerCreateFunction:
+    Description: "Customer Create Lambda Function ARN"
+    Value: !GetAtt CustomerCreateFunction.Arn
+  CustomerCreateFunctionIamRole:
+    Description: "Implicit IAM Role created for Customer Create function"
+    Value: !GetAtt CustomerCreateFunctionRole.Arn
 
-  CustomerCreate:
-    Description: "CustomerCreate Function ARN"
-    Value:
-      Fn::GetAtt: [CustomerCreate,Arn]
+  # New multi-tool function
+  CustomerManagementFunction:
+    Description: "Customer Management Lambda Function ARN (with tool discovery)"
+    Value: !GetAtt CustomerManagementFunction.Arn
+  CustomerManagementFunctionIamRole:
+    Description: "Implicit IAM Role created for Customer Management function"
+    Value: !GetAtt CustomerManagementFunctionRole.Arn
