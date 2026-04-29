@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs lambda MCP Server implementation using ChukMCPServer."""
+"""awslabs lambda MCP Server implementation using ChukMCPServer with tool discovery."""
 
 import boto3
 import json
@@ -20,7 +20,7 @@ import logging
 import os
 import re
 from chuk_mcp_server import ChukMCPServer
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 
 # Set up logging
@@ -108,11 +108,7 @@ def validate_function_name(function_name: str) -> bool:
 
 
 def sanitize_tool_name(name: str) -> str:
-    """Sanitize a Lambda function name to be used as a tool name."""
-    # Remove prefix if present
-    if name.startswith(FUNCTION_PREFIX):
-        name = name[len(FUNCTION_PREFIX) :]
-
+    """Sanitize a tool name to be used as an MCP tool name."""
     # Replace invalid characters with underscore
     name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
 
@@ -123,20 +119,110 @@ def sanitize_tool_name(name: str) -> str:
     return name
 
 
-def format_lambda_response(function_name: str, payload: bytes) -> str:
+def format_lambda_response(function_name: str, tool_name: str, payload: bytes) -> str:
     """Format the Lambda function response payload."""
     try:
         # Try to parse the payload as JSON
         payload_json = json.loads(payload)
-        return f'Function {function_name} returned: {json.dumps(payload_json, indent=2)}'
+        return f'Tool {tool_name} (function {function_name}) returned: {json.dumps(payload_json, indent=2)}'
     except (json.JSONDecodeError, UnicodeDecodeError):
         # Return raw payload if not JSON
-        return f'Function {function_name} returned payload: {payload}'
+        return f'Tool {tool_name} (function {function_name}) returned payload: {payload}'
+
+
+def discover_tools_from_lambda(function_name: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    Discover tools from a Lambda function by calling it with a discovery payload.
+    
+    Args:
+        function_name: Name of the Lambda function
+        
+    Returns:
+        List of tool definitions or None if discovery fails
+    """
+    try:
+        logger.info(f'Discovering tools from Lambda function: {function_name}')
+        
+        # Call Lambda with discovery payload
+        response = lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType='RequestResponse',
+            Payload=json.dumps({'action': 'discover_tools'}),
+        )
+        
+        if 'FunctionError' in response:
+            logger.warning(f'Function {function_name} returned error during discovery: {response["FunctionError"]}')
+            return None
+        
+        payload = response['Payload'].read()
+        result = json.loads(payload)
+        
+        # Check if response has tools array
+        if isinstance(result, dict) and 'tools' in result:
+            tools = result['tools']
+            logger.info(f'Discovered {len(tools)} tools from function {function_name}')
+            return tools
+        else:
+            logger.warning(f'Function {function_name} did not return expected discovery format')
+            return None
+            
+    except Exception as e:
+        logger.warning(f'Error discovering tools from function {function_name}: {e}')
+        return None
+
+
+async def invoke_lambda_tool_impl(function_name: str, tool_name: str, parameters: dict) -> str:
+    """
+    Invoke a specific tool within a Lambda function.
+    
+    Args:
+        function_name: Name of the Lambda function
+        tool_name: Name of the tool to invoke
+        parameters: Tool parameters
+        
+    Returns:
+        Tool execution result
+    """
+    logger.info(f'Invoking tool {tool_name} in function {function_name} with parameters: {parameters}')
+
+    # Build payload with tool name and arguments
+    payload = {
+        'tool': tool_name,
+        'arguments': parameters
+    }
+
+    response = lambda_client.invoke(
+        FunctionName=function_name,
+        InvocationType='RequestResponse',
+        Payload=json.dumps(payload),
+    )
+
+    logger.info(f'Tool {tool_name} in function {function_name} returned with status code: {response["StatusCode"]}')
+
+    if 'FunctionError' in response:
+        error_message = (
+            f'Tool {tool_name} in function {function_name} returned with error: {response["FunctionError"]}'
+        )
+        logger.error(error_message)
+        return error_message
+
+    payload_bytes = response['Payload'].read()
+    # Format the response payload
+    return format_lambda_response(function_name, tool_name, payload_bytes)
 
 
 async def invoke_lambda_function_impl(function_name: str, parameters: dict) -> str:
-    """Tool that invokes an AWS Lambda function with a JSON payload."""
-    logger.info(f'Invoking {function_name} with parameters: {parameters}')
+    """
+    Legacy tool invocation for Lambda functions that don't support tool discovery.
+    
+    Args:
+        function_name: Name of the Lambda function
+        parameters: Function parameters
+        
+    Returns:
+        Function execution result
+    """
+    logger.info(f'Invoking legacy function {function_name} with parameters: {parameters}')
 
     response = lambda_client.invoke(
         FunctionName=function_name,
@@ -155,7 +241,95 @@ async def invoke_lambda_function_impl(function_name: str, parameters: dict) -> s
 
     payload = response['Payload'].read()
     # Format the response payload
-    return format_lambda_response(function_name, payload)
+    try:
+        payload_json = json.loads(payload)
+        return f'Function {function_name} returned: {json.dumps(payload_json, indent=2)}'
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return f'Function {function_name} returned payload: {payload}'
+
+
+def create_lambda_tool_from_discovery(
+    function_name: str,
+    tool_def: Dict[str, Any]
+) -> None:
+    """
+    Create an MCP tool from a discovered tool definition.
+    
+    Args:
+        function_name: Name of the Lambda function
+        tool_def: Tool definition from discovery response
+    """
+    tool_name = tool_def.get('name')
+    if not tool_name:
+        logger.warning(f'Tool definition missing name in function {function_name}')
+        return
+    
+    # Sanitize tool name
+    sanitized_name = sanitize_tool_name(tool_name)
+    
+    description = tool_def.get('description', f'Tool {tool_name} from Lambda function {function_name}')
+    input_schema = tool_def.get('inputSchema', {})
+    
+    # Create the tool handler function
+    async def tool_handler(parameters: dict) -> str:
+        """Dynamically created tool handler."""
+        return await invoke_lambda_tool_impl(function_name, tool_name, parameters)
+    
+    # Set the function's documentation
+    tool_handler.__doc__ = description
+    
+    # Build the full tool name (include function name to avoid conflicts)
+    full_tool_name = f'{sanitize_tool_name(function_name)}_{sanitized_name}'
+    
+    logger.info(f'Registering tool {full_tool_name} from function {function_name}')
+    
+    # Register the tool with ChukMCPServer
+    # The tool decorator will handle the schema from the function signature
+    # We'll pass the input schema as part of the description for now
+    if input_schema:
+        full_description = f'{description}\n\nInput Schema:\n{json.dumps(input_schema, indent=2)}'
+    else:
+        full_description = description
+    
+    tool_handler.__doc__ = full_description
+    
+    # Apply the decorator manually
+    decorated_function = mcp.tool(name=full_tool_name)(tool_handler)
+
+
+def create_legacy_lambda_tool(function_name: str, description: str, schema_arn: Optional[str] = None):
+    """
+    Create a legacy tool function for a Lambda function that doesn't support discovery.
+    
+    Args:
+        function_name: Name of the Lambda function
+        description: Base description for the tool
+        schema_arn: Optional ARN of the input schema in the Schema Registry
+    """
+    # Create a meaningful tool name
+    tool_name = sanitize_tool_name(function_name)
+
+    # Build the full description with schema if available
+    full_description = description
+    if schema_arn:
+        schema = get_schema_from_registry(schema_arn)
+        if schema:
+            full_description = f'{description}\n\nInput Schema:\n{schema}'
+            logger.info(f'Added schema from registry to description for function {function_name}')
+
+    # Define the inner function with proper docstring
+    async def lambda_function(parameters: dict) -> str:
+        """Tool for invoking a specific AWS Lambda function with parameters."""
+        return await invoke_lambda_function_impl(function_name, parameters)
+
+    # Set the function's documentation
+    lambda_function.__doc__ = full_description
+
+    logger.info(f'Registering legacy tool {tool_name} with description: {description}')
+    # Apply the decorator manually with the specific name
+    decorated_function = mcp.tool(name=tool_name)(lambda_function)
+
+    return decorated_function
 
 
 def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
@@ -195,40 +369,6 @@ def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
     except Exception as e:
         logger.error(f'Error fetching schema from registry: {e}')
         return None
-
-
-def create_lambda_tool(function_name: str, description: str, schema_arn: Optional[str] = None):
-    """Create a tool function for a Lambda function.
-
-    Args:
-        function_name: Name of the Lambda function
-        description: Base description for the tool
-        schema_arn: Optional ARN of the input schema in the Schema Registry
-    """
-    # Create a meaningful tool name
-    tool_name = sanitize_tool_name(function_name)
-
-    # Build the full description with schema if available
-    full_description = description
-    if schema_arn:
-        schema = get_schema_from_registry(schema_arn)
-        if schema:
-            full_description = f'{description}\n\nInput Schema:\n{schema}'
-            logger.info(f'Added schema from registry to description for function {function_name}')
-
-    # Define the inner function with proper docstring
-    async def lambda_function(parameters: dict) -> str:
-        """Tool for invoking a specific AWS Lambda function with parameters."""
-        return await invoke_lambda_function_impl(function_name, parameters)
-
-    # Set the function's documentation
-    lambda_function.__doc__ = full_description
-
-    logger.info(f'Registering tool {tool_name} with description: {description}')
-    # Apply the decorator manually with the specific name
-    decorated_function = mcp.tool(name=tool_name)(lambda_function)
-
-    return decorated_function
 
 
 def get_schema_arn_from_function_arn(function_arn: str) -> Optional[str]:
@@ -303,9 +443,9 @@ def get_all_lambda_functions():
 
 
 def register_lambda_functions():
-    """Register Lambda functions as individual tools."""
+    """Register Lambda functions as individual tools with tool discovery support."""
     try:
-        logger.info('Registering Lambda functions as individual tools...')
+        logger.info('Registering Lambda functions with tool discovery...')
 
         # Get all functions
         all_functions = get_all_lambda_functions()
@@ -335,14 +475,26 @@ def register_lambda_functions():
             )
             valid_functions = []
 
+        # Register tools for each function
         for function in valid_functions:
             function_name = function['FunctionName']
             description = function.get('Description', f'AWS Lambda function: {function_name}')
-            schema_arn = get_schema_arn_from_function_arn(function['FunctionArn'])
+            
+            # Try to discover tools from the function
+            tools = discover_tools_from_lambda(function_name)
+            
+            if tools:
+                # Register each discovered tool
+                logger.info(f'Registering {len(tools)} tools from function {function_name}')
+                for tool_def in tools:
+                    create_lambda_tool_from_discovery(function_name, tool_def)
+            else:
+                # Fall back to legacy mode - single tool per function
+                logger.info(f'Using legacy mode for function {function_name}')
+                schema_arn = get_schema_arn_from_function_arn(function['FunctionArn'])
+                create_legacy_lambda_tool(function_name, description, schema_arn)
 
-            create_lambda_tool(function_name, description, schema_arn)
-
-        logger.info('Lambda functions registered successfully as individual tools.')
+        logger.info('Lambda functions registered successfully.')
 
     except Exception as e:
         logger.error(f'Error registering Lambda functions as tools: {e}')

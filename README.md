@@ -8,6 +8,22 @@ A Model Context Protocol (MCP) server for AWS Lambda to select and run Lambda fu
 
 This MCP server acts as a **bridge** between MCP clients and AWS Lambda functions, allowing generative AI models to access and run Lambda functions as tools. This is useful, for example, to access private resources such as internal applications and databases without the need to provide public network access. This approach allows the model to use other AWS services, private networks, and the public internet.
 
+### Tool Discovery Protocol (New in v2.1.0)
+
+Lambda functions can now expose **multiple tools** instead of being limited to one tool per function. The server implements a discovery protocol that:
+
+1. **Discovers Tools at Startup**: When the MCP server initializes, it calls each Lambda function with `{"action": "discover_tools"}` to get a list of available tools
+2. **Registers Multiple Tools**: Each discovered tool is registered as a separate MCP tool with its own name, description, and input schema
+3. **Backward Compatible**: Functions that don't implement the discovery protocol continue to work as before (one tool per function)
+
+**Benefits:**
+- One Lambda function can provide multiple related tools (e.g., different search types)
+- Better tool documentation with detailed descriptions and JSON schemas
+- Cleaner separation of concerns within Lambda functions
+- Type-safe tool parameters with schema validation
+
+See [TOOL_DISCOVERY_PROTOCOL.md](TOOL_DISCOVERY_PROTOCOL.md) for implementation details.
+
 ```mermaid
 graph LR
     A[Model] <--> B[MCP Client]
@@ -198,12 +214,23 @@ You can specify `FUNCTION_PREFIX`, `FUNCTION_LIST`, or both. If both are empty, 
 After the name check, if both `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` are set, functions are further filtered by tag (with key=value).
 If only one of `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE`, then no function is selected and a warning is displayed.
 
-**IMPORTANT**: The function name is used as MCP tool name. The function description in AWS Lambda is used as MCP tool description. The function description should clarify when to use the function (what it provides) and how (which parameters). For example, a function that gives access to an internal Customer Relationship Management (CRM) system can use this description:
-```plaintext
-Retrieve customer status on the CRM system based on { 'customerId' } or { 'customerEmail' }
-```
+### Tool Naming and Discovery
 
-The lambda function parameters can also be provided through the EventBridge Schema Registry, which provides formal JSON Schema. See [Schema Support](#schema-support) below.
+**With Tool Discovery (v2.1.0+):**
+- Lambda functions can expose multiple tools by implementing the discovery protocol
+- Each tool has its own name, description, and input schema
+- Tool names are prefixed with the function name to avoid conflicts (e.g., `astra_race_vector_search`)
+- See [TOOL_DISCOVERY_PROTOCOL.md](TOOL_DISCOVERY_PROTOCOL.md) for implementation details
+
+**Legacy Mode (Backward Compatible):**
+- The function name is used as the MCP tool name
+- The function description in AWS Lambda is used as the MCP tool description
+- The function description should clarify when to use the function (what it provides) and how (which parameters)
+- Example: A function that gives access to an internal CRM system can use this description:
+  ```plaintext
+  Retrieve customer status on the CRM system based on { 'customerId' } or { 'customerEmail' }
+  ```
+- Lambda function parameters can also be provided through the EventBridge Schema Registry (see [Schema Support](#schema-support))
 
 Sample functions that can be deployed via AWS SAM are provided in the `examples` folder.
 
