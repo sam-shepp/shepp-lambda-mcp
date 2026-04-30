@@ -1,0 +1,6 @@
+{
+  "tool": "hello_world",
+  "arguments": {
+    "name": "Alice"
+  }
+}

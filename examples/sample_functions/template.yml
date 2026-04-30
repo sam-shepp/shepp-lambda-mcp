@@ -34,7 +34,7 @@ Resources:
       Handler: app.lambda_handler
       Description: Create a new customer on the CRM system based on { 'name', 'email', 'phone', 'address' (optional) }
 
-  # New multi-tool function with tool discovery protocol
+  # New multi-tool functions with tool discovery protocol
   CustomerManagementFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -44,6 +44,17 @@ Resources:
       Tags:
         MCP: "enabled"
         ToolDiscovery: "v2.1.0"
+
+  SimpleToolsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: simple-tools/
+      Handler: app.lambda_handler
+      Description: Simple example tools (hello_world, echo, get_timestamp, calculate) - perfect for learning tool discovery protocol
+      Tags:
+        MCP: "enabled"
+        ToolDiscovery: "v2.1.0"
+        Example: "basic"
 
 Outputs:
   # Legacy functions
@@ -68,10 +79,17 @@ Outputs:
     Description: "Implicit IAM Role created for Customer Create function"
     Value: !GetAtt CustomerCreateFunctionRole.Arn
 
-  # New multi-tool function
+  # New multi-tool functions
   CustomerManagementFunction:
     Description: "Customer Management Lambda Function ARN (with tool discovery)"
     Value: !GetAtt CustomerManagementFunction.Arn
   CustomerManagementFunctionIamRole:
     Description: "Implicit IAM Role created for Customer Management function"
     Value: !GetAtt CustomerManagementFunctionRole.Arn
+
+  SimpleToolsFunction:
+    Description: "Simple Tools Lambda Function ARN (with tool discovery - hello_world, echo, get_timestamp, calculate)"
+    Value: !GetAtt SimpleToolsFunction.Arn
+  SimpleToolsFunctionIamRole:
+    Description: "Implicit IAM Role created for Simple Tools function"
+    Value: !GetAtt SimpleToolsFunctionRole.Arn

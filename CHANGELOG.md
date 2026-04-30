@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tool invocation now uses `{"tool": "tool_name", "arguments": {...}}` format for discovered tools
 - Legacy flat parameter format still supported for backward compatibility
 - Tool descriptions are now more detailed and include input schemas when available
+- Improved error handling with custom exception classes for better error reporting
+- Enhanced logging throughout the application for better debugging and monitoring
 
 ### Documentation
 

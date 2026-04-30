@@ -219,7 +219,7 @@ If only one of `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE`, then no function is 
 **With Tool Discovery (v2.1.0+):**
 - Lambda functions can expose multiple tools by implementing the discovery protocol
 - Each tool has its own name, description, and input schema
-- Tool names are prefixed with the function name to avoid conflicts (e.g., `astra_race_vector_search`)
+- Tool names are used directly as defined in the Lambda function (e.g., `race_vector_search`)
 - See [TOOL_DISCOVERY_PROTOCOL.md](TOOL_DISCOVERY_PROTOCOL.md) for implementation details
 
 **Legacy Mode (Backward Compatible):**

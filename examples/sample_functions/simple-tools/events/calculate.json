@@ -1,0 +1,8 @@
+{
+  "tool": "calculate",
+  "arguments": {
+    "operation": "multiply",
+    "a": 7,
+    "b": 6
+  }
+}

@@ -278,8 +278,8 @@ def create_lambda_tool_from_discovery(
     # Set the function's documentation
     tool_handler.__doc__ = description
     
-    # Build the full tool name (include function name to avoid conflicts)
-    full_tool_name = f'{sanitize_tool_name(function_name)}_{sanitized_name}'
+    # Use the tool name directly from the Lambda function
+    full_tool_name = sanitized_name
     
     logger.info(f'Registering tool {full_tool_name} from function {function_name}')
     
