@@ -47,6 +47,27 @@ This is the **recommended starting point** for learning how to implement the too
 - Comprehensive error handling
 - Well-documented schemas
 
+#### SimpleToolsMCP (Dual-Mode Pattern) ⭐ **RECOMMENDED**
+
+A **dual-mode Lambda/MCP server** that can operate in two ways:
+1. **As a Lambda function** - Deploy to AWS Lambda, invoke via shepp-lambda-mcp
+2. **As a standalone MCP server** - Run directly with any MCP client
+
+**Key Benefits:**
+- ✅ **Portable** - Same code runs anywhere (Lambda, local, container, VM)
+- ✅ **Flexible** - Choose deployment based on needs (serverless vs local)
+- ✅ **Developer-Friendly** - Test locally without AWS, debug with standard tools
+- ✅ **Cost-Effective** - Use Lambda for production, local for development
+- ✅ **ChukMCPServer** - Uses chuk-mcp-server package for MCP functionality
+
+**Tools Exposed:**
+1. `hello_world` - Simple greeting with optional name parameter
+2. `echo` - Echo messages with formatting options
+3. `get_timestamp` - Get current timestamp in various formats
+4. `calculate` - Basic arithmetic operations
+
+This is the **recommended pattern** for building Lambda functions that are also MCP servers. See `simple-tools-mcp/README.md` for detailed documentation.
+
 ## Available Functions
 
 ### Legacy Functions
@@ -107,6 +128,25 @@ This is the **recommended starting point** for learning how to implement the too
 - **Runtime**: Python 3.13
 - **Architecture**: ARM64
 - **Tags**: `MCP: enabled`, `ToolDiscovery: v2.1.0`, `Example: basic`
+
+#### 6. SimpleToolsMCP (Dual-Mode Pattern - Recommended)
+
+- **Purpose**: **Dual-mode Lambda/MCP server** - can run as Lambda function OR standalone MCP server
+- **Tools Exposed**:
+  - `hello_world` - Simple greeting with optional name
+  - `echo` - Echo messages with formatting options
+  - `get_timestamp` - Get current time in various formats
+  - `calculate` - Basic arithmetic operations
+- **Key Features**:
+  - Uses `ChukMCPServer` package
+  - Same code runs as Lambda or standalone
+  - Can be deployed to Lambda AND run locally
+  - Perfect template for building portable MCP tools
+- **Memory**: 128 MB
+- **Timeout**: 3 seconds
+- **Runtime**: Python 3.13
+- **Architecture**: ARM64
+- **Tags**: `MCP: enabled`, `ToolDiscovery: v2.1.0`, `Example: dual-mode`, `ChukMCPServer: true`
 
 ## Tool Discovery Protocol
 
@@ -247,6 +287,55 @@ After deployment, you can test the tool discovery protocol:
    cat response.json
    ```
 
+### Testing SimpleToolsMCP Function (Dual-Mode)
+
+#### As Lambda Function
+
+1. **Test Discovery**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsMCPFunction \
+     --payload '{"action": "discover_tools"}' \
+     response.json
+   cat response.json
+   ```
+
+2. **Test hello_world**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsMCPFunction \
+     --payload '{"tool": "hello_world", "arguments": {"name": "Bob"}}' \
+     response.json
+   cat response.json
+   ```
+
+#### As Standalone MCP Server
+
+1. **Install dependencies**:
+   ```bash
+   cd simple-tools-mcp
+   pip install -r requirements.txt
+   ```
+
+2. **Run as MCP server**:
+   ```bash
+   python app.py
+   ```
+
+3. **Configure MCP client** (e.g., Bob Shell):
+   ```json
+   {
+     "mcpServers": {
+       "simple-tools-local": {
+         "command": "python",
+         "args": ["/absolute/path/to/simple-tools-mcp/app.py"]
+       }
+     }
+   }
+   ```
+
+4. **Test with MCP client** - The server will be available with all 4 tools
+
 ## MCP Server Configuration
 
 To use these functions with the MCP server, add them to your configuration:
@@ -315,6 +404,44 @@ The MCP server will automatically discover all 4 tools from the SimpleToolsFunct
 ```
 
 This will register all 8 tools from both functions.
+
+### Using SimpleToolsMCP (Dual-Mode - Recommended)
+
+**As Lambda Function:**
+```json
+{
+  "mcpServers": {
+    "simple-tools-lambda": {
+      "command": "uvx",
+      "args": ["shepp-lambda-mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_LIST": "SimpleToolsMCPFunction"
+      }
+    }
+  }
+}
+```
+
+**As Standalone MCP Server:**
+```json
+{
+  "mcpServers": {
+    "simple-tools-local": {
+      "command": "python",
+      "args": ["/absolute/path/to/simple-tools-mcp/app.py"]
+    }
+  }
+}
+```
+
+**Both modes register the same 4 tools:**
+- `hello_world`
+- `echo`
+- `get_timestamp`
+- `calculate`
+
+The dual-mode pattern gives you flexibility to choose the best deployment for your needs.
 
 ## Cleanup
 

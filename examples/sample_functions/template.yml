@@ -56,6 +56,18 @@ Resources:
         ToolDiscovery: "v2.1.0"
         Example: "basic"
 
+  SimpleToolsMCPFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: simple-tools-mcp/
+      Handler: app.lambda_handler
+      Description: Dual-mode Lambda/MCP server with simple tools - can run as Lambda or standalone MCP server
+      Tags:
+        MCP: "enabled"
+        ToolDiscovery: "v2.1.0"
+        Example: "dual-mode"
+        ChukMCPServer: "true"
+
 Outputs:
   # Legacy functions
   CustomerInfoFromIdFunction:
@@ -93,3 +105,10 @@ Outputs:
   SimpleToolsFunctionIamRole:
     Description: "Implicit IAM Role created for Simple Tools function"
     Value: !GetAtt SimpleToolsFunctionRole.Arn
+
+  SimpleToolsMCPFunction:
+    Description: "Simple Tools MCP Lambda Function ARN (dual-mode: Lambda + standalone MCP server)"
+    Value: !GetAtt SimpleToolsMCPFunction.Arn
+  SimpleToolsMCPFunctionIamRole:
+    Description: "Implicit IAM Role created for Simple Tools MCP function"
+    Value: !GetAtt SimpleToolsMCPFunctionRole.Arn
