@@ -23,10 +23,8 @@ import inspect
 import json
 from typing import Any, Dict
 
-from chuk_mcp_server import get_mcp_instance
-
-# Import tools to register them
-from . import tools  # noqa: F401
+# Import tools to register them and get the TOOLS dict
+from .tools import TOOLS
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -44,14 +42,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         dict: Tool definitions, tool results, or error message
     """
     try:
-        # Get the MCP instance
-        mcp = get_mcp_instance()
-        
         # Handle tool discovery request
         if event.get("action") == "discover_tools":
-            # Get tool definitions from ChukMCPServer
+            # Get tool definitions from registered tools
             tools_list = []
-            for tool_name, tool_func in mcp._tools.items():
+            for tool_name, tool_func in TOOLS.items():
                 # Extract schema from function signature and docstring
                 sig = inspect.signature(tool_func)
                 doc = inspect.getdoc(tool_func) or f"Tool: {tool_name}"
@@ -105,13 +100,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             arguments = {k: v for k, v in event.items() if k != "tool"}
         
         # Get the tool function
-        if tool_name not in mcp._tools:
+        if tool_name not in TOOLS:
             return {
                 "error": f"Unknown tool: {tool_name}",
-                "available_tools": list(mcp._tools.keys())
+                "available_tools": list(TOOLS.keys())
             }
         
-        tool_func = mcp._tools[tool_name]
+        tool_func = TOOLS[tool_name]
         
         # Invoke the tool
         result = tool_func(**arguments)

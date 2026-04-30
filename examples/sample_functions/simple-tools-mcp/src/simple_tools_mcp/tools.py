@@ -5,8 +5,12 @@ All tools are registered with ChukMCPServer via @tool decorators.
 
 import json
 from datetime import datetime
+from typing import Callable, Dict
 
 from chuk_mcp_server import tool
+
+# Tool registry for Lambda handler
+TOOLS: Dict[str, Callable] = {}
 
 
 @tool(name='hello_world')
@@ -146,4 +150,10 @@ def calculate(operation: str, a: float, b: float) -> str:
         })
 
 
-__all__ = ["hello_world", "echo", "get_timestamp", "calculate"]
+# Register tools in the TOOLS dict for Lambda handler
+TOOLS['hello_world'] = hello_world
+TOOLS['echo'] = echo
+TOOLS['get_timestamp'] = get_timestamp
+TOOLS['calculate'] = calculate
+
+__all__ = ["hello_world", "echo", "get_timestamp", "calculate", "TOOLS"]
