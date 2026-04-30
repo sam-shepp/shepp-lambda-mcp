@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "simple-tools-local": {
+      "command": "simple-tools-mcp",
+      "args": []
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "simple-tools-lambda": {
+      "command": "uvx",
+      "args": ["shepp-lambda-mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_LIST": "SimpleToolsMCPFunction"
+      }
+    }
+  }
+}
