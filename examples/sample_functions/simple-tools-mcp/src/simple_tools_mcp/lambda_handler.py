@@ -21,10 +21,47 @@ while maintaining compatibility with the tool discovery protocol.
 
 import inspect
 import json
+import re
 from typing import Any, Dict
 
 # Import tools to register them and get the TOOLS dict
 from .tools import TOOLS
+
+
+def parse_docstring_params(docstring: str) -> Dict[str, str]:
+    """
+    Parse parameter descriptions from docstring Args section.
+    
+    Args:
+        docstring: Function docstring
+        
+    Returns:
+        Dict mapping parameter names to their descriptions
+    """
+    param_descriptions = {}
+    
+    if not docstring:
+        return param_descriptions
+    
+    # Find Args section
+    args_match = re.search(r'Args:\s*\n(.*?)(?:\n\s*\n|\n\s*Returns:|\Z)', docstring, re.DOTALL)
+    if not args_match:
+        return param_descriptions
+    
+    args_section = args_match.group(1)
+    
+    # Parse each parameter line
+    # Format: "param_name: description" or "param_name (type): description"
+    param_pattern = r'^\s*(\w+)(?:\s*\([^)]+\))?\s*:\s*(.+?)(?=^\s*\w+(?:\s*\([^)]+\))?\s*:|$)'
+    
+    for match in re.finditer(param_pattern, args_section, re.MULTILINE | re.DOTALL):
+        param_name = match.group(1)
+        description = match.group(2).strip()
+        # Clean up multi-line descriptions
+        description = ' '.join(description.split())
+        param_descriptions[param_name] = description
+    
+    return param_descriptions
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -51,6 +88,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 sig = inspect.signature(tool_func)
                 doc = inspect.getdoc(tool_func) or f"Tool: {tool_name}"
                 
+                # Parse parameter descriptions from docstring
+                param_descriptions = parse_docstring_params(doc)
+                
                 # Build input schema from function signature
                 properties = {}
                 required = []
@@ -68,17 +108,31 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         elif param.annotation == bool:
                             param_type = "boolean"
                     
+                    # Use parsed description or fallback
+                    description = param_descriptions.get(param_name, f"Parameter: {param_name}")
+                    
                     properties[param_name] = {
                         "type": param_type,
-                        "description": f"Parameter: {param_name}"
+                        "description": description
                     }
                     
                     if param.default == inspect.Parameter.empty:
                         required.append(param_name)
                 
+                # Get full description (first paragraph of docstring)
+                description_lines = []
+                for line in doc.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        break
+                    if line and not line.startswith('Args:') and not line.startswith('Returns:'):
+                        description_lines.append(line)
+                
+                full_description = ' '.join(description_lines)
+                
                 tools_list.append({
                     "name": tool_name,
-                    "description": doc.split('\n')[0],  # First line of docstring
+                    "description": full_description,
                     "inputSchema": {
                         "type": "object",
                         "properties": properties,
