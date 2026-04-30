@@ -16,9 +16,11 @@ The first three functions demonstrate the original approach where each Lambda fu
 
 These functions continue to work with the MCP server for backward compatibility.
 
-### New Multi-Tool Function (Tool Discovery)
+### New Multi-Tool Functions (Tool Discovery)
 
-**CustomerManagement** - A single Lambda function that exposes **4 tools** using the tool discovery protocol:
+#### CustomerManagement
+
+A single Lambda function that exposes **4 tools** using the tool discovery protocol:
 
 1. `get_customer_info` - Retrieve customer information by ID
 2. `get_customer_id_from_email` - Look up customer ID by email
@@ -29,6 +31,21 @@ This demonstrates how one Lambda function can provide multiple related tools, ea
 - Detailed descriptions
 - JSON Schema for input validation
 - Type-safe parameters
+
+#### SimpleTools
+
+A beginner-friendly Lambda function that exposes **4 simple tools** perfect for learning the tool discovery protocol:
+
+1. `hello_world` - Simple greeting tool with optional name parameter
+2. `echo` - Echo messages with optional uppercase and repeat formatting
+3. `get_timestamp` - Get current timestamp in various formats (ISO, Unix, readable)
+4. `calculate` - Perform basic arithmetic operations (add, subtract, multiply, divide)
+
+This is the **recommended starting point** for learning how to implement the tool discovery protocol. Each tool demonstrates:
+- Clear, simple functionality
+- Proper input validation
+- Comprehensive error handling
+- Well-documented schemas
 
 ## Available Functions
 
@@ -76,6 +93,20 @@ This demonstrates how one Lambda function can provide multiple related tools, ea
 - **Runtime**: Python 3.13
 - **Architecture**: ARM64
 - **Tags**: `MCP: enabled`, `ToolDiscovery: v2.1.0`
+
+#### 5. SimpleTools (Recommended for Learning)
+
+- **Purpose**: Simple example tools for learning the tool discovery protocol
+- **Tools Exposed**:
+  - `hello_world` - Simple greeting with optional name
+  - `echo` - Echo messages with formatting options
+  - `get_timestamp` - Get current time in various formats
+  - `calculate` - Basic arithmetic operations
+- **Memory**: 128 MB
+- **Timeout**: 3 seconds
+- **Runtime**: Python 3.13
+- **Architecture**: ARM64
+- **Tags**: `MCP: enabled`, `ToolDiscovery: v2.1.0`, `Example: basic`
 
 ## Tool Discovery Protocol
 
@@ -149,6 +180,8 @@ Example discovery response:
 
 After deployment, you can test the tool discovery protocol:
 
+### Testing CustomerManagement Function
+
 1. **Test Discovery**:
    ```bash
    aws lambda invoke \
@@ -167,9 +200,58 @@ After deployment, you can test the tool discovery protocol:
    cat response.json
    ```
 
+### Testing SimpleTools Function (Recommended for Beginners)
+
+1. **Test Discovery**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsFunction \
+     --payload '{"action": "discover_tools"}' \
+     response.json
+   cat response.json
+   ```
+
+2. **Test hello_world**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsFunction \
+     --payload '{"tool": "hello_world", "arguments": {"name": "Alice"}}' \
+     response.json
+   cat response.json
+   ```
+
+3. **Test echo**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsFunction \
+     --payload '{"tool": "echo", "arguments": {"message": "Hello MCP", "uppercase": true, "repeat": 3}}' \
+     response.json
+   cat response.json
+   ```
+
+4. **Test get_timestamp**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsFunction \
+     --payload '{"tool": "get_timestamp", "arguments": {"format": "readable"}}' \
+     response.json
+   cat response.json
+   ```
+
+5. **Test calculate**:
+   ```bash
+   aws lambda invoke \
+     --function-name SimpleToolsFunction \
+     --payload '{"tool": "calculate", "arguments": {"operation": "multiply", "a": 7, "b": 6}}' \
+     response.json
+   cat response.json
+   ```
+
 ## MCP Server Configuration
 
 To use these functions with the MCP server, add them to your configuration:
+
+### Using CustomerManagement Function
 
 ```json
 {
@@ -187,10 +269,52 @@ To use these functions with the MCP server, add them to your configuration:
 ```
 
 The MCP server will automatically discover all 4 tools from the CustomerManagementFunction and register them as:
-- `CustomerManagementFunction_get_customer_info`
-- `CustomerManagementFunction_get_customer_id_from_email`
-- `CustomerManagementFunction_create_customer`
-- `CustomerManagementFunction_update_customer`
+- `get_customer_info`
+- `get_customer_id_from_email`
+- `create_customer`
+- `update_customer`
+
+### Using SimpleTools Function (Recommended for Learning)
+
+```json
+{
+  "mcpServers": {
+    "simple-tools": {
+      "command": "uvx",
+      "args": ["shepp-lambda-mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_LIST": "SimpleToolsFunction"
+      }
+    }
+  }
+}
+```
+
+The MCP server will automatically discover all 4 tools from the SimpleToolsFunction and register them as:
+- `hello_world`
+- `echo`
+- `get_timestamp`
+- `calculate`
+
+### Using Both Functions
+
+```json
+{
+  "mcpServers": {
+    "lambda-tools": {
+      "command": "uvx",
+      "args": ["shepp-lambda-mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_LIST": "CustomerManagementFunction,SimpleToolsFunction"
+      }
+    }
+  }
+}
+```
+
+This will register all 8 tools from both functions.
 
 ## Cleanup
 
