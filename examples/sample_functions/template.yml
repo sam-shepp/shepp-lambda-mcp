@@ -60,7 +60,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: simple-tools-mcp/
-      Handler: app.lambda_handler
+      Handler: simple_tools_mcp.lambda_handler.lambda_handler
       Description: Dual-mode Lambda/MCP server with simple tools - can run as Lambda or standalone MCP server
       Tags:
         MCP: "enabled"

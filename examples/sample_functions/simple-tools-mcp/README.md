@@ -1,71 +1,88 @@
 # Simple Tools MCP - Dual-Mode Lambda/MCP Server
 
-A Lambda function that can operate in **two modes**:
-1. **Lambda Mode**: Deployed to AWS Lambda, invoked via shepp-lambda-mcp
+A **production-ready** Lambda function that can operate in **two modes**:
+1. **Lambda Mode**: Deploy to AWS Lambda, invoked via shepp-lambda-mcp
 2. **Standalone Mode**: Run directly as an MCP server with any MCP client
 
-## Key Features
+## 🌟 Key Features
 
-✅ **Dual-Mode Operation** - Works as Lambda function OR standalone MCP server
-✅ **ChukMCPServer** - Uses chuk-mcp-server package for MCP functionality
-✅ **Tool Discovery** - Supports shepp-lambda-mcp tool discovery protocol
-✅ **Portable** - Same code runs anywhere (Lambda, local, container, etc.)
-✅ **Type-Safe** - Python type hints throughout
+✅ **Dual-Mode Operation** - Works as Lambda function OR standalone MCP server  
+✅ **Proper Package Structure** - Full Python package with src/, tests/, pyproject.toml  
+✅ **ChukMCPServer** - Uses chuk-mcp-server package for MCP functionality  
+✅ **Portable** - Same code runs anywhere (Lambda, local, container, VM)  
+✅ **Type-Safe** - Python type hints throughout  
+✅ **Tested** - Comprehensive test suite with pytest  
+✅ **Production-Ready** - Proper logging, error handling, and packaging  
 
-## Architecture
+## 📦 Package Structure
 
-This example demonstrates the **recommended pattern** for creating Lambda functions that are also MCP servers:
-
-```python
-from chuk_mcp_server import ChukMCPServer
-
-# Initialize MCP Server
-mcp = ChukMCPServer(name='simple-tools', version='1.0.0')
-
-# Define tools using decorators
-@mcp.tool(name='hello_world')
-def hello_world(name: str = "World") -> str:
-    """Tool implementation"""
-    return json.dumps({"greeting": f"Hello, {name}!"})
-
-# Lambda handler for AWS Lambda
-def lambda_handler(event, context):
-    """Handles tool discovery and invocation"""
-    if event.get("action") == "discover_tools":
-        return {"tools": [...]}  # Return tool definitions
-    # Route to tool functions...
-
-# Standalone entry point
-if __name__ == '__main__':
-    mcp.run()  # Run as MCP server
+```
+simple-tools-mcp/
+├── src/
+│   └── simple_tools_mcp/
+│       ├── __init__.py          # Package initialization
+│       ├── server.py            # MCP server entry point
+│       ├── lambda_handler.py    # AWS Lambda handler
+│       └── tools.py             # Tool implementations
+├── tests/
+│   ├── __init__.py
+│   ├── test_tools.py           # Tool tests
+│   └── test_lambda_handler.py  # Lambda handler tests
+├── examples/
+│   ├── lambda_config.json      # Lambda mode config
+│   └── standalone_config.json  # Standalone mode config
+├── pyproject.toml              # Package configuration
+├── Makefile                    # Development commands
+├── README.md                   # This file
+└── .gitignore                  # Git ignore patterns
 ```
 
-## Available Tools
+## 🚀 Quick Start
 
-### 1. hello_world
-Simple greeting with optional name parameter.
+### Installation
 
-### 2. echo
-Echo messages with uppercase and repeat formatting options.
-
-### 3. get_timestamp
-Get current timestamp in ISO, Unix, or readable formats.
-
-### 4. calculate
-Basic arithmetic operations (add, subtract, multiply, divide).
-
-## Usage
-
-### Mode 1: As AWS Lambda Function
-
-**Deploy to Lambda:**
+**For standalone use:**
 ```bash
-cd examples/sample_functions
+pip install -e .
+```
+
+**For development:**
+```bash
+pip install -e ".[dev]"
+```
+
+**Using uv (recommended):**
+```bash
+uv pip install -e .
+```
+
+### Running as Standalone MCP Server
+
+**Option 1: Using the installed command**
+```bash
+simple-tools-mcp
+```
+
+**Option 2: Using Python module**
+```bash
+python -m simple_tools_mcp.server
+```
+
+**Option 3: Using Makefile**
+```bash
+make run-local
+```
+
+### Deploying to AWS Lambda
+
+**1. Build and deploy with SAM:**
+```bash
+cd ..  # Go to sample_functions directory
 sam build
 sam deploy
 ```
 
-**Use with shepp-lambda-mcp:**
+**2. Configure shepp-lambda-mcp:**
 ```json
 {
   "mcpServers": {
@@ -81,38 +98,222 @@ sam deploy
 }
 ```
 
-The shepp-lambda-mcp server will:
-1. Call Lambda with `{"action": "discover_tools"}`
-2. Register all 4 tools: `hello_world`, `echo`, `get_timestamp`, `calculate`
-3. Route tool calls to the Lambda function
+## 🛠️ Available Tools
 
-### Mode 2: As Standalone MCP Server
+### 1. hello_world
+Simple greeting with optional name parameter.
 
-**Install dependencies:**
-```bash
-pip install chuk-mcp-server
+**Parameters:**
+- `name` (string, optional): Name to greet. Defaults to "World"
+
+**Example:**
+```json
+{
+  "tool": "hello_world",
+  "arguments": {"name": "Alice"}
+}
 ```
 
-**Run directly:**
-```bash
-python app.py
+### 2. echo
+Echo messages with uppercase and repeat formatting options.
+
+**Parameters:**
+- `message` (string, required): Message to echo
+- `uppercase` (boolean, optional): Convert to uppercase. Defaults to false
+- `repeat` (integer, optional): Repeat count (1-10). Defaults to 1
+
+**Example:**
+```json
+{
+  "tool": "echo",
+  "arguments": {
+    "message": "hello",
+    "uppercase": true,
+    "repeat": 3
+  }
+}
 ```
 
-**Use with any MCP client:**
+### 3. get_timestamp
+Get current timestamp in various formats.
+
+**Parameters:**
+- `format` (string, optional): Format type - "iso", "unix", or "readable". Defaults to "iso"
+- `timezone` (string, optional): Timezone name. Defaults to "UTC"
+
+**Example:**
+```json
+{
+  "tool": "get_timestamp",
+  "arguments": {"format": "readable"}
+}
+```
+
+### 4. calculate
+Basic arithmetic operations.
+
+**Parameters:**
+- `operation` (string, required): Operation - "add", "subtract", "multiply", or "divide"
+- `a` (number, required): First operand
+- `b` (number, required): Second operand
+
+**Example:**
+```json
+{
+  "tool": "calculate",
+  "arguments": {
+    "operation": "multiply",
+    "a": 7,
+    "b": 6
+  }
+}
+```
+
+## 🧪 Testing
+
+**Run all tests:**
+```bash
+make test
+```
+
+**Or using pytest directly:**
+```bash
+pytest tests/ -v
+```
+
+**With coverage:**
+```bash
+pytest tests/ -v --cov=simple_tools_mcp --cov-report=term-missing
+```
+
+## 🔍 Development
+
+**Format code:**
+```bash
+make format
+```
+
+**Lint code:**
+```bash
+make lint
+```
+
+**Clean build artifacts:**
+```bash
+make clean
+```
+
+**Build package:**
+```bash
+make build
+```
+
+## 📋 Usage Examples
+
+### As Standalone MCP Server
+
+**1. Install the package:**
+```bash
+pip install -e .
+```
+
+**2. Configure your MCP client (e.g., Bob Shell):**
 ```json
 {
   "mcpServers": {
-    "simple-tools-local": {
-      "command": "python",
-      "args": ["/path/to/app.py"]
+    "simple-tools": {
+      "command": "simple-tools-mcp",
+      "args": []
     }
   }
 }
 ```
 
-The same code runs as a native MCP server using stdio transport.
+**3. Use the tools in your MCP client:**
+- All 4 tools will be available
+- Tools are registered automatically via @tool decorators
+- Full MCP protocol support (list_tools, call_tool)
 
-## Benefits of Dual-Mode Pattern
+### As AWS Lambda Function
+
+**1. Deploy to Lambda:**
+```bash
+cd ..  # sample_functions directory
+sam build
+sam deploy
+```
+
+**2. Test discovery:**
+```bash
+aws lambda invoke \
+  --function-name SimpleToolsMCPFunction \
+  --payload '{"action": "discover_tools"}' \
+  response.json
+```
+
+**3. Test tool invocation:**
+```bash
+aws lambda invoke \
+  --function-name SimpleToolsMCPFunction \
+  --payload '{"tool": "hello_world", "arguments": {"name": "Lambda"}}' \
+  response.json
+```
+
+**4. Use with shepp-lambda-mcp:**
+```json
+{
+  "mcpServers": {
+    "simple-tools-lambda": {
+      "command": "uvx",
+      "args": ["shepp-lambda-mcp"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_LIST": "SimpleToolsMCPFunction"
+      }
+    }
+  }
+}
+```
+
+## 🏗️ Architecture
+
+### Dual-Mode Design
+
+The package uses a clean separation of concerns:
+
+**1. Tools (`tools.py`)**
+- Pure tool implementations
+- Decorated with `@tool` from chuk-mcp-server
+- No Lambda or MCP-specific code
+- Fully testable in isolation
+
+**2. MCP Server (`server.py`)**
+- Entry point for standalone mode
+- Imports tools to register them
+- Runs ChukMCPServer with stdio transport
+- Handles command-line arguments
+
+**3. Lambda Handler (`lambda_handler.py`)**
+- Entry point for Lambda mode
+- Implements tool discovery protocol
+- Routes tool invocations to registered tools
+- Returns JSON responses
+
+### How It Works
+
+**Standalone Mode:**
+```
+MCP Client → stdio → server.py → ChukMCPServer → tools.py
+```
+
+**Lambda Mode:**
+```
+shepp-lambda-mcp → Lambda invoke → lambda_handler.py → tools.py
+```
+
+Both modes use the **same tool implementations** from `tools.py`.
+
+## 🎯 Benefits of This Pattern
 
 ### 1. **Flexibility**
 - Deploy to Lambda for production (scalable, serverless)
@@ -128,168 +329,66 @@ The same code runs as a native MCP server using stdio transport.
 - Test locally without AWS
 - Debug with standard Python tools
 - Fast development cycle
+- Proper package structure
 
 ### 4. **Cost Optimization**
 - Use Lambda for production (pay per use)
 - Use local/container for development (free)
 - Choose deployment based on needs
 
-## Implementation Details
+### 5. **Production Ready**
+- Proper Python package structure
+- Comprehensive test suite
+- Type hints throughout
+- Logging and error handling
 
-### Tool Discovery Protocol
+## 📝 Creating Your Own Dual-Mode Server
 
-The Lambda handler implements the discovery protocol:
+Use this as a template:
 
-```python
-def lambda_handler(event, context):
-    # Discovery request
-    if event.get("action") == "discover_tools":
-        tools = []
-        for tool_name, tool_func in mcp._tools.items():
-            # Extract schema from function signature
-            tools.append({
-                "name": tool_name,
-                "description": "...",
-                "inputSchema": {...}
-            })
-        return {"tools": tools}
-    
-    # Tool invocation
-    tool_name = event.get("tool")
-    arguments = event.get("arguments", {})
-    result = mcp._tools[tool_name](**arguments)
-    return result
-```
-
-### ChukMCPServer Integration
-
-ChukMCPServer provides:
-- Tool registration via decorators
-- Automatic schema generation
-- stdio transport for standalone mode
-- Tool routing and execution
-
-### Type Safety
-
-All tools use Python type hints:
-```python
-@mcp.tool(name='calculate')
-def calculate(operation: str, a: float, b: float) -> str:
-    """Type hints enable automatic schema generation"""
-    pass
-```
-
-## Testing
-
-### Test as Lambda Function
-
+**1. Copy the structure:**
 ```bash
-# Test discovery
-aws lambda invoke \
-  --function-name SimpleToolsMCPFunction \
-  --payload '{"action": "discover_tools"}' \
-  response.json
-
-# Test tool invocation
-aws lambda invoke \
-  --function-name SimpleToolsMCPFunction \
-  --payload '{"tool": "hello_world", "arguments": {"name": "Alice"}}' \
-  response.json
+cp -r simple-tools-mcp my-tools-mcp
+cd my-tools-mcp
 ```
 
-### Test as Standalone Server
+**2. Update package name in `pyproject.toml`:**
+```toml
+[project]
+name = "my-tools-mcp"
+```
 
+**3. Add your tools in `src/my_tools_mcp/tools.py`:**
+```python
+from chuk_mcp_server import tool
+
+@tool(name='my_tool')
+def my_tool(param: str) -> str:
+    """Your tool implementation."""
+    return json.dumps({"result": param})
+```
+
+**4. Update imports in `server.py` and `lambda_handler.py`**
+
+**5. Install and test:**
 ```bash
-# Run the server
-python app.py
-
-# In another terminal, use an MCP client to test
-# Or use the MCP inspector tool
+pip install -e .
+my-tools-mcp  # Run standalone
 ```
 
-## Deployment
+## 🐛 Troubleshooting
 
-### Lambda Deployment
+### Standalone Mode Issues
 
-The SAM template includes this function:
+**Server won't start:**
+- Check Python version (3.11+)
+- Verify chuk-mcp-server is installed: `pip list | grep chuk-mcp-server`
+- Check for port conflicts
 
-```yaml
-SimpleToolsMCPFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    CodeUri: simple-tools-mcp/
-    Handler: app.lambda_handler
-    Runtime: python3.13
-    Architectures:
-      - arm64
-```
-
-### Standalone Deployment
-
-**Docker:**
-```dockerfile
-FROM python:3.13-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY app.py .
-CMD ["python", "app.py"]
-```
-
-**Systemd Service:**
-```ini
-[Unit]
-Description=Simple Tools MCP Server
-
-[Service]
-ExecStart=/usr/bin/python3 /path/to/app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Migration Guide
-
-To convert an existing Lambda function to dual-mode:
-
-1. **Add ChukMCPServer:**
-   ```python
-   from chuk_mcp_server import ChukMCPServer
-   mcp = ChukMCPServer(name='my-function', version='1.0.0')
-   ```
-
-2. **Convert functions to tools:**
-   ```python
-   @mcp.tool(name='my_tool')
-   def my_tool(param: str) -> str:
-       # Your existing logic
-       pass
-   ```
-
-3. **Update lambda_handler:**
-   ```python
-   def lambda_handler(event, context):
-       if event.get("action") == "discover_tools":
-           return {"tools": [...]}
-       # Route to tools
-   ```
-
-4. **Add main entry point:**
-   ```python
-   if __name__ == '__main__':
-       mcp.run()
-   ```
-
-## Best Practices
-
-1. **Use Type Hints** - Enables automatic schema generation
-2. **Return JSON Strings** - Consistent format across modes
-3. **Handle Errors Gracefully** - Return error objects, don't raise
-4. **Document Tools** - Use docstrings for descriptions
-5. **Keep Tools Simple** - One responsibility per tool
-
-## Troubleshooting
+**MCP client can't connect:**
+- Verify command path in config
+- Check stdio transport is working
+- Review client logs
 
 ### Lambda Mode Issues
 
@@ -303,27 +402,13 @@ To convert an existing Lambda function to dual-mode:
 - Check tool name is correct
 - Review Lambda execution logs
 
-### Standalone Mode Issues
+## 📚 Additional Resources
 
-**Server won't start:**
-- Check Python version (3.10+)
-- Verify chuk-mcp-server is installed
-- Check for port conflicts
+- [ChukMCPServer Documentation](https://github.com/chrishayuk/chuk-mcp-server)
+- [shepp-lambda-mcp Documentation](https://github.com/samsheppard/shepp-lambda-mcp)
+- [MCP Protocol Specification](https://modelcontextprotocol.io)
 
-**MCP client can't connect:**
-- Verify command path in config
-- Check stdio transport is working
-- Review client logs
-
-## Next Steps
-
-1. Study the code in `app.py`
-2. Try running in both modes
-3. Add your own custom tools
-4. Deploy to Lambda and test with shepp-lambda-mcp
-5. Use as a template for your own dual-mode functions
-
-## License
+## 📄 License
 
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 Licensed under the Apache License, Version 2.0.

@@ -1,1 +1,1 @@
-chuk-mcp-server>=0.1.0
+chuk-mcp-server>=0.25.3
