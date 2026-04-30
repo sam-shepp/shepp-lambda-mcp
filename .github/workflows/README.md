@@ -18,25 +18,31 @@ The workflow runs when:
 
 ### Requirements
 
-This workflow uses **Trusted Publishing** (OpenID Connect) for secure authentication with PyPI. No API tokens are stored in GitHub secrets.
+This workflow uses a **PyPI API Token** stored in GitHub Secrets for authentication.
 
 #### Setup Instructions
 
-1. **Configure PyPI Trusted Publisher**:
-   - Go to your PyPI project: https://pypi.org/manage/project/shepp-lambda-mcp/settings/
-   - Navigate to "Publishing" section
-   - Click "Add a new publisher"
-   - Fill in the following details:
-     - **PyPI Project Name**: `shepp-lambda-mcp`
-     - **Owner**: Your GitHub username or organization
-     - **Repository name**: `shepp-lambda-mcp`
-     - **Workflow name**: `publish-to-pypi.yml`
-     - **Environment name**: (leave blank)
-   - Click "Add"
+1. **Get your PyPI API Token**:
+   - Go to PyPI Account Settings: https://pypi.org/manage/account/
+   - Scroll to "API tokens" section
+   - Click "Add API token"
+   - Give it a name (e.g., "GitHub Actions - shepp-lambda-mcp")
+   - Set scope to "Project: shepp-lambda-mcp" (recommended) or "Entire account"
+   - Click "Add token"
+   - **IMPORTANT**: Copy the token immediately (starts with `pypi-`)
+   - You won't be able to see it again!
 
-2. **Verify Permissions**:
-   - The workflow requires `id-token: write` permission (already configured)
-   - The workflow requires `contents: read` permission (already configured)
+2. **Add Token to GitHub Secrets**:
+   - Go to your GitHub repository
+   - Navigate to Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `PYPI_API_TOKEN`
+   - Value: Paste your PyPI token (the one starting with `pypi-`)
+   - Click "Add secret"
+
+3. **Verify Setup**:
+   - The workflow will now use `${{ secrets.PYPI_API_TOKEN }}` to authenticate
+   - No additional permissions needed in the workflow
 
 ### Workflow Steps
 
@@ -64,18 +70,20 @@ You can manually trigger the workflow:
 
 ### Troubleshooting
 
-**Error: "Trusted publishing exchange failure"**
-- Verify the trusted publisher is configured correctly on PyPI
-- Check that the workflow name matches exactly: `publish-to-pypi.yml`
-- Ensure the repository name and owner are correct
+**Error: "Invalid or non-existent authentication information"**
+- Verify the `PYPI_API_TOKEN` secret is set correctly in GitHub
+- Check that the token hasn't expired or been revoked
+- Ensure the token has the correct scope (project or account)
+- Try regenerating the token on PyPI and updating the secret
 
 **Error: "Version already exists"**
 - Update the version in `awslabs/lambda_tool_mcp_server/__init__.py`
 - The workflow will skip publishing if the version exists (won't fail)
 
 **Error: "Permission denied"**
-- Verify the workflow has `id-token: write` permission
 - Check repository settings → Actions → General → Workflow permissions
+- Ensure "Read and write permissions" is enabled for workflows
+- Verify the `PYPI_API_TOKEN` secret exists and is accessible
 
 ### Version Management
 
