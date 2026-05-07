@@ -183,6 +183,14 @@ async def invoke_lambda_tool_impl(function_name: str, tool_name: str, parameters
     Returns:
         Tool execution result
     """
+    # Handle case where parameters might be passed as a string
+    if isinstance(parameters, str):
+        try:
+            parameters = json.loads(parameters) if parameters else {}
+        except json.JSONDecodeError:
+            logger.warning(f'Failed to parse parameters string, using empty dict: {parameters}')
+            parameters = {}
+    
     logger.info(f'Invoking tool {tool_name} in function {function_name} with parameters: {parameters}')
 
     # Build payload with tool name and arguments
