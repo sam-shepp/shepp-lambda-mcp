@@ -1,105 +1,77 @@
-# Lambda MCP Server Tests
+# shepp-lambda-mcp Tests
 
-This directory contains tests for the lambda-tool-mcp-server. The tests are organized by module and cover all aspects of the server's functionality.
+This directory contains the test suite for `shepp-lambda-mcp`. The tests target the
+current `ChukMCPServer`-based server (`awslabs/lambda_tool_mcp_server/server.py`),
+including the tool-discovery protocol and the legacy single-tool fallback.
 
-## Test Structure
+## Test structure
 
-- `test_server.py`: Unit tests for the server module functions
-- `test_integration.py`: Integration tests for the MCP server and Lambda function tools
+| File | Covers |
+| --- | --- |
+| `test_server.py` | Pure helpers: `validate_function_name`, `sanitize_tool_name`, `format_lambda_response` (tool-aware, 3-arg), and the `main` entrypoint |
+| `test_invoke.py` | `invoke_lambda_tool_impl` (the `{'tool', 'arguments'}` envelope + string-parameter parsing) and the legacy `invoke_lambda_function_impl` |
+| `test_discovery.py` | `discover_tools_from_lambda`, `create_lambda_tool_from_discovery`, and `create_legacy_lambda_tool`, including that registered handlers delegate to the right invoke impl |
+| `test_register.py` | `register_lambda_functions` (prefix/list/tag filters, incomplete-tag warning, discovery-vs-legacy path, error handling), `filter_functions_by_tag`, and `get_all_lambda_functions` pagination |
+| `test_schema.py` | EventBridge Schema Registry integration: `get_schema_from_registry`, `get_schema_arn_from_function_arn` |
+| `test_client_config.py` | The boto3 client `Config` (read/connect timeout, retries) and how the module selects credentials (explicit / profile / default chain) |
 
-## Running the Tests
+## Running the tests
 
-To run the tests, use the provided script from the root directory of the project:
-
-```bash
-./run_tests.sh
-```
-
-This script will automatically install pytest and its dependencies if they're not already installed.
-
-Alternatively, if you have pytest installed, you can run the tests directly:
-
-```bash
-pytest -xvs tests/
-```
-
-To run a specific test file:
+The project uses [`uv`](https://docs.astral.sh/uv/). From the repo root:
 
 ```bash
-pytest -xvs tests/test_server.py
+uv run pytest
 ```
 
-To run a specific test class:
+Coverage (against `awslabs.lambda_tool_mcp_server`) and `term-missing` reporting are
+enabled by default via `addopts` in `pyproject.toml`, so a plain run already prints
+coverage. To run without coverage:
 
 ```bash
-pytest -xvs tests/test_server.py::TestValidateFunctionName
+uv run pytest --no-cov
 ```
 
-To run a specific test:
+Run a single file, class, or test:
 
 ```bash
-pytest -xvs tests/test_server.py::TestValidateFunctionName::test_empty_prefix_and_list
+uv run pytest tests/test_register.py
+uv run pytest tests/test_server.py::TestValidateFunctionName
+uv run pytest tests/test_server.py::TestValidateFunctionName::test_empty_prefix_and_list
 ```
 
-## Test Coverage
-
-To generate a test coverage report, use the following command:
+For an HTML coverage report:
 
 ```bash
-pytest --cov=awslabs.lambda_tool_mcp_server tests/
+uv run pytest --cov-report=html
+# then open htmlcov/index.html
 ```
 
-For a more detailed HTML coverage report:
+## Fixtures
 
-```bash
-pytest --cov=awslabs.lambda_tool_mcp_server --cov-report=html tests/
-```
+Fixtures live in `conftest.py`:
 
-This will generate a coverage report in the `htmlcov` directory. Open `htmlcov/index.html` in a web browser to view the report.
+- `sample_functions` — the list of Lambda function objects (name, ARN, description) used across tests.
+- `mock_lambda_client` — a mock boto3 Lambda client. Its `invoke` answers both the
+  discovery probe (`{'action': 'discover_tools'}`) and normal tool/legacy invokes.
+  By default no function advertises tools, so registration takes the legacy path;
+  tests that exercise discovery patch `discover_tools_from_lambda` directly.
+- `server_module` — imports the server (under a mocked `boto3.Session`) and clears the
+  shared `mcp` tool registry before and after the test, so real tool registrations
+  don't leak between tests.
 
-## Test Dependencies
+## Import-time note
 
-The tests require the following dependencies:
+`server.py` builds its boto3 clients at import time, so every test module imports it
+under a mocked `boto3.Session` (a `pytest.MonkeyPatch().context()` guard at the top of
+each file). `test_client_config.py` additionally reloads the module with `importlib`
+to assert how the clients and session are constructed for different environments.
 
-- pytest
-- pytest-asyncio
-- pytest-cov (for coverage reports)
-- unittest.mock (for mocking)
+## Guidelines for new tests
 
-These dependencies are included in the project's development dependencies.
-
-## Test Fixtures
-
-The test fixtures are defined in `conftest.py` and include:
-
-- `mock_lambda_client`: A mock boto3 Lambda client
-- `mock_env_vars`: Sets up and tears down environment variables for testing
-- `clear_env_vars`: Clears environment variables for testing
-
-## Adding New Tests
-
-When adding new tests, follow these guidelines:
-
-1. Place tests in the appropriate file based on the module being tested
-2. Use descriptive test names that clearly indicate what is being tested
-3. Use pytest fixtures for common setup and teardown
-4. Use pytest.mark.asyncio for async tests
-5. Use mocks for external dependencies
-6. Add docstrings to test classes and methods
-
-## Mocking Strategy
-
-Since we can't actually invoke AWS Lambda functions in tests, we use mocking:
-
-1. Mock the boto3 Lambda client:
-   - Mock `list_functions` to return predefined functions
-   - Mock `list_tags` to return predefined tags
-   - Mock `invoke` to return predefined responses
-
-2. Mock environment variables:
-   - AWS_PROFILE
-   - AWS_REGION
-   - FUNCTION_PREFIX
-   - FUNCTION_LIST
-   - FUNCTION_TAG_KEY
-   - FUNCTION_TAG_VALUE
+1. Put tests in the file matching the area under test (see the table above).
+2. Prefer asserting against real registrations via `mcp.get_tools()` over asserting
+   that a decorator was called — it verifies the handler wiring end to end.
+3. Patch `awslabs.lambda_tool_mcp_server.server.lambda_client` (and `schemas_client`)
+   rather than reaching for real AWS calls.
+4. Use `@pytest.mark.asyncio` for the async invoke paths.
+5. Keep Google-style docstrings on test classes and methods (enforced by ruff).
