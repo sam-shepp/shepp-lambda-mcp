@@ -11,6 +11,18 @@ def _reload_server_with_mock_session(monkeypatch):
     Returns the reloaded server module and the mock Session instance so tests can
     inspect the arguments the module used to build its boto3 clients at import time.
     """
+    _, instance, _ = _reload_server_capturing_session(monkeypatch)
+    import awslabs.lambda_tool_mcp_server.server as server
+
+    return server, instance
+
+
+def _reload_server_capturing_session(monkeypatch):
+    """Reload the server module, returning (server, Session instance, Session class mock).
+
+    Exposing the Session class mock lets tests assert how the module chose to build the
+    boto3 session (explicit credentials vs profile vs default chain) at import time.
+    """
     mock_session_instance = MagicMock()
     mock_session_cls = MagicMock(return_value=mock_session_instance)
     monkeypatch.setattr('boto3.Session', mock_session_cls)
@@ -18,7 +30,7 @@ def _reload_server_with_mock_session(monkeypatch):
     import awslabs.lambda_tool_mcp_server.server as server
 
     server = importlib.reload(server)
-    return server, mock_session_instance
+    return server, mock_session_instance, mock_session_cls
 
 
 def _client_kwargs_for(mock_session_instance, service_name):
@@ -68,6 +80,57 @@ class TestLambdaClientReadTimeout:
         """Reload the module cleanly after each test so a mocked session doesn't leak."""
         yield
         # Reimport without the mocked Session left in place by monkeypatch teardown.
+        import awslabs.lambda_tool_mcp_server.server as server
+
+        importlib.reload(server)
+
+
+class TestSessionCredentialSelection:
+    """Tests for how the module builds its boto3 Session from the environment."""
+
+    def test_explicit_credentials(self, monkeypatch):
+        """Explicit access key/secret build a Session from those credentials."""
+        monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'AKIAEXAMPLE')
+        monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'secret')
+        monkeypatch.setenv('AWS_SESSION_TOKEN', 'token')
+        monkeypatch.setenv('AWS_REGION', 'us-west-2')
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+
+        _, _, session_cls = _reload_server_capturing_session(monkeypatch)
+
+        session_cls.assert_called_once_with(
+            aws_access_key_id='AKIAEXAMPLE',
+            aws_secret_access_key='secret',
+            aws_session_token='token',
+            region_name='us-west-2',
+        )
+
+    def test_profile(self, monkeypatch):
+        """With no explicit credentials, a profile builds a profile-based Session."""
+        monkeypatch.delenv('AWS_ACCESS_KEY_ID', raising=False)
+        monkeypatch.delenv('AWS_SECRET_ACCESS_KEY', raising=False)
+        monkeypatch.setenv('AWS_PROFILE', 'my-profile')
+        monkeypatch.setenv('AWS_REGION', 'eu-west-1')
+
+        _, _, session_cls = _reload_server_capturing_session(monkeypatch)
+
+        session_cls.assert_called_once_with(profile_name='my-profile', region_name='eu-west-1')
+
+    def test_default_chain(self, monkeypatch):
+        """With neither credentials nor profile, the default chain is used."""
+        monkeypatch.delenv('AWS_ACCESS_KEY_ID', raising=False)
+        monkeypatch.delenv('AWS_SECRET_ACCESS_KEY', raising=False)
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.setenv('AWS_REGION', 'ap-south-1')
+
+        _, _, session_cls = _reload_server_capturing_session(monkeypatch)
+
+        session_cls.assert_called_once_with(region_name='ap-south-1')
+
+    @pytest.fixture(autouse=True)
+    def _restore_module(self, monkeypatch):
+        """Reload the module cleanly after each test so a mocked session doesn't leak."""
+        yield
         import awslabs.lambda_tool_mcp_server.server as server
 
         importlib.reload(server)
