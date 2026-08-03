@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+from botocore.config import Config
 from chuk_mcp_server import ChukMCPServer
 from typing import Optional, Dict, List, Any
 
@@ -30,6 +31,13 @@ logger = logging.getLogger(__name__)
 # AWS Configuration
 AWS_REGION = os.environ.get('AWS_REGION', 'eu-central-1')
 logger.info(f'AWS_REGION: {AWS_REGION}')
+
+# Read timeout (seconds) for the Lambda client. Downstream MCP-server Lambdas are
+# invoked synchronously and some legitimately run longer than boto3's default 60s
+# read timeout (they carry their own multi-minute function timeout). Make it
+# generous and env-configurable so a slow-but-successful invoke does not read-time-out.
+LAMBDA_INVOKE_READ_TIMEOUT = int(os.environ.get('LAMBDA_INVOKE_READ_TIMEOUT', '300'))
+logger.info(f'LAMBDA_INVOKE_READ_TIMEOUT: {LAMBDA_INVOKE_READ_TIMEOUT}')
 
 # AWS Credentials - can be provided directly or via profile
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
@@ -83,8 +91,17 @@ else:
     # Use default credentials chain (environment variables, instance profile, etc.)
     session = boto3.Session(region_name=AWS_REGION)
 
-lambda_client = session.client('lambda')
-schemas_client = session.client('schemas')
+# Longer read timeout so synchronous invokes of slow downstream Lambdas do not
+# read-time-out before the function itself returns. connect_timeout stays short;
+# limited retries guard against transient connection errors.
+boto_config = Config(
+    read_timeout=LAMBDA_INVOKE_READ_TIMEOUT,
+    connect_timeout=10,
+    retries={'max_attempts': 2, 'mode': 'standard'},
+)
+
+lambda_client = session.client('lambda', config=boto_config)
+schemas_client = session.client('schemas', config=boto_config)
 
 mcp = ChukMCPServer(
     name='shepp-lambda-mcp',
