@@ -118,7 +118,7 @@ schemas_client = session.client('schemas', config=boto_config)
 
 mcp = ChukMCPServer(
     name='shepp-lambda-mcp',
-    version='2.0.17',
+    version='2.3.0',
     description="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
     transport='stdio',
