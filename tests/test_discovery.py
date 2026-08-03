@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
     from awslabs.lambda_tool_mcp_server.server import (
+        build_signature_from_schema,
         create_lambda_tool_from_discovery,
         create_legacy_lambda_tool,
         discover_tools_from_lambda,
@@ -101,21 +102,75 @@ class TestCreateLambdaToolFromDiscovery:
         assert len(server_module.mcp.get_tools()) == before
         assert 'missing name' in caplog.text
 
-    def test_input_schema_added_to_description(self, server_module):
-        """An inputSchema is embedded in the registered tool's description."""
-        schema = {'type': 'object', 'properties': {'x': {'type': 'number'}}}
+    def test_input_schema_advertised_natively(self, server_module):
+        """A tool's inputSchema is advertised as flat top-level params, not a wrapper."""
+        schema = {
+            'type': 'object',
+            'properties': {'x': {'type': 'number'}},
+            'required': ['x'],
+        }
         create_lambda_tool_from_discovery(
             'my-function',
             {'name': 'calc', 'description': 'Calculate', 'inputSchema': schema},
         )
 
         tool = _tool_by_name(server_module, 'calc')
-        assert 'Input Schema:' in tool.description
-        assert '"type": "number"' in tool.description
+        advertised = tool.to_mcp_format()['inputSchema']
+        assert 'x' in advertised['properties']
+        assert advertised['properties']['x']['type'] == 'number'
+        assert advertised['required'] == ['x']
+        # No generic wrapper, and the schema isn't duplicated into the description.
+        assert 'parameters' not in advertised['properties']
+        assert 'Input Schema:' not in tool.description
 
     @pytest.mark.asyncio
-    async def test_handler_delegates_to_tool_impl(self, server_module):
-        """Invoking the registered handler delegates to invoke_lambda_tool_impl."""
+    async def test_flat_args_forwarded_as_arguments(self, server_module):
+        """Flat call arguments are forwarded as the tool's arguments, omitting blanks."""
+        schema = {
+            'type': 'object',
+            'properties': {'city': {'type': 'string'}, 'units': {'type': 'string'}},
+            'required': ['city'],
+        }
+        create_lambda_tool_from_discovery(
+            'my-function',
+            {'name': 'weather', 'description': 'Get weather', 'inputSchema': schema},
+        )
+        tool = _tool_by_name(server_module, 'weather')
+
+        with patch.object(
+            server_module, 'invoke_lambda_tool_impl', new=AsyncMock(return_value='delegated')
+        ) as mock_impl:
+            result = await tool.execute({'city': 'London'})
+
+        assert result == 'delegated'
+        # 'units' was omitted, so it must not be forwarded to the Lambda tool.
+        mock_impl.assert_awaited_once_with('my-function', 'weather', {'city': 'London'})
+
+    def test_no_schema_falls_back_to_wrapper(self, server_module):
+        """A tool without an inputSchema keeps the single `parameters` wrapper."""
+        create_lambda_tool_from_discovery(
+            'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
+        )
+
+        tool = _tool_by_name(server_module, 'do_thing')
+        advertised = tool.to_mcp_format()['inputSchema']
+        assert 'parameters' in advertised['properties']
+
+    def test_invalid_identifier_property_falls_back_to_wrapper(self, server_module):
+        """A property name that isn't a valid identifier falls back to the wrapper."""
+        schema = {'type': 'object', 'properties': {'bad-name': {'type': 'string'}}}
+        create_lambda_tool_from_discovery(
+            'my-function',
+            {'name': 'weird', 'description': 'Weird', 'inputSchema': schema},
+        )
+
+        tool = _tool_by_name(server_module, 'weird')
+        advertised = tool.to_mcp_format()['inputSchema']
+        assert 'parameters' in advertised['properties']
+
+    @pytest.mark.asyncio
+    async def test_wrapper_handler_delegates_to_tool_impl(self, server_module):
+        """The fallback wrapper handler still delegates to invoke_lambda_tool_impl."""
         create_lambda_tool_from_discovery(
             'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
         )
@@ -128,6 +183,62 @@ class TestCreateLambdaToolFromDiscovery:
 
         assert result == 'delegated'
         mock_impl.assert_awaited_once_with('my-function', 'do-thing', {'a': 1})
+
+
+class TestBuildSignatureFromSchema:
+    """Tests for build_signature_from_schema."""
+
+    def test_builds_signature_with_required_and_optional(self):
+        """Required properties have no default; optional ones default to None."""
+        schema = {
+            'type': 'object',
+            'properties': {'city': {'type': 'string'}, 'units': {'type': 'string'}},
+            'required': ['city'],
+        }
+        signature, annotations = build_signature_from_schema(schema)
+
+        params = signature.parameters
+        assert params['city'].default is params['city'].empty
+        assert params['units'].default is None
+        assert annotations['city'] is str
+        assert annotations['return'] is str
+
+    def test_maps_json_types_to_python(self):
+        """JSON Schema primitive types map to Python annotations."""
+        schema = {
+            'type': 'object',
+            'properties': {
+                's': {'type': 'string'},
+                'i': {'type': 'integer'},
+                'n': {'type': 'number'},
+                'b': {'type': 'boolean'},
+            },
+            'required': ['s', 'i', 'n', 'b'],
+        }
+        _, annotations = build_signature_from_schema(schema)
+
+        assert annotations == {
+            's': str,
+            'i': int,
+            'n': float,
+            'b': bool,
+            'return': str,
+        }
+
+    def test_empty_or_missing_properties_returns_none(self):
+        """A schema with no properties yields no signature."""
+        assert build_signature_from_schema({'type': 'object'}) is None
+        assert build_signature_from_schema({'type': 'object', 'properties': {}}) is None
+
+    def test_non_dict_returns_none(self):
+        """A non-dict schema yields no signature."""
+        assert build_signature_from_schema(None) is None
+        assert build_signature_from_schema('not a schema') is None
+
+    def test_invalid_identifier_returns_none(self):
+        """A property name that isn't a valid identifier yields no signature."""
+        schema = {'type': 'object', 'properties': {'bad-name': {'type': 'string'}}}
+        assert build_signature_from_schema(schema) is None
 
 
 class TestCreateLegacyLambdaTool:
