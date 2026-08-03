@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2026-08-03
+
+### Fixed
+
+- Give the boto3 Lambda (and Schemas) client a longer, env-configurable read timeout. Previously the client used boto3's default 60s read timeout, so synchronous invokes of legitimately slow downstream MCP-server Lambdas (e.g. long-running wx.data/Presto query tools) would raise `Read timeout on endpoint URL` even though the downstream function — which carries its own multi-minute timeout — was still running successfully. The read timeout now defaults to 300s and is overridable via the `LAMBDA_INVOKE_READ_TIMEOUT` environment variable. `connect_timeout` is set to 10s and the client retries with `max_attempts=2` (standard mode).
+
 ## [1.0.0] - 2025-05-26
 
 ### Removed
