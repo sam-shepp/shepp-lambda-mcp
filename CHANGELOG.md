@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-08-03
+
+### Changed
+
+- Discovered tools now advertise their `inputSchema` as flat, top-level parameters instead of a generic `parameters` object wrapper. ChukMCPServer derives a tool's advertised MCP input schema from its handler's Python signature, so the server now synthesises a signature from each discovered tool's `inputSchema`. LLMs — which are trained to emit flat tool arguments matching the schema — can now call tools naturally (e.g. `{"city": "London"}`) rather than nesting arguments under `parameters`. Supplied arguments are forwarded downstream unchanged as `{"tool": <name>, "arguments": {...}}`.
+- Tools whose `inputSchema` has no usable properties (or a property name that isn't a valid Python identifier) fall back to the previous single `parameters` object argument. Legacy (non-discovery) functions are unchanged.
+
 ## [2.2.2] - 2026-08-03
 
 ### Fixed

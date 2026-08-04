@@ -15,6 +15,7 @@
 """awslabs lambda MCP Server implementation using ChukMCPServer with tool discovery."""
 
 import boto3
+import inspect
 import json
 import logging
 import os
@@ -22,6 +23,18 @@ import re
 from botocore.config import Config
 from chuk_mcp_server import ChukMCPServer
 from typing import Optional, Dict, List, Any
+
+
+# Map JSON Schema primitive types to Python annotations so a discovered tool's
+# input schema can be turned into a real function signature.
+_JSON_TYPE_TO_PY = {
+    'string': str,
+    'integer': int,
+    'number': float,
+    'boolean': bool,
+    'array': list,
+    'object': dict,
+}
 
 
 # Set up logging
@@ -105,7 +118,7 @@ schemas_client = session.client('schemas', config=boto_config)
 
 mcp = ChukMCPServer(
     name='shepp-lambda-mcp',
-    version='2.0.17',
+    version='2.3.0',
     description="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
     transport='stdio',
@@ -273,13 +286,74 @@ async def invoke_lambda_function_impl(function_name: str, parameters: dict) -> s
         return f'Function {function_name} returned payload: {payload}'
 
 
+def build_signature_from_schema(input_schema: Dict[str, Any]):
+    """Build a Python signature and annotations from a JSON Schema object.
+
+    ChukMCPServer derives a tool's advertised MCP input schema from its handler's
+    Python signature. By synthesising a signature that mirrors the discovered tool's
+    ``inputSchema``, the tool advertises its real parameters as top-level fields
+    (e.g. ``city``) instead of a generic ``parameters`` wrapper. This lets LLMs call
+    the tool with flat arguments, matching how they are trained to call tools.
+
+    Args:
+        input_schema: The discovered tool's JSON Schema (an ``object`` schema)
+
+    Returns:
+        A ``(signature, annotations)`` tuple, or ``None`` if the schema has no usable
+        properties or contains a property name that isn't a valid Python identifier
+        (in which case the caller should fall back to a generic wrapper).
+    """
+    if not isinstance(input_schema, dict):
+        return None
+
+    properties = input_schema.get('properties')
+    if not isinstance(properties, dict) or not properties:
+        return None
+
+    required = set(input_schema.get('required', []) or [])
+    required_params = []
+    optional_params = []
+    annotations: Dict[str, Any] = {}
+
+    for name, prop in properties.items():
+        # A parameter that can't be expressed as a Python identifier can't drive a
+        # signature; bail out so the caller uses the generic wrapper instead.
+        if not isinstance(name, str) or not name.isidentifier():
+            return None
+
+        prop = prop if isinstance(prop, dict) else {}
+        annotation = _JSON_TYPE_TO_PY.get(prop.get('type'), str)
+        annotations[name] = annotation
+
+        if name in required:
+            required_params.append(
+                inspect.Parameter(
+                    name, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation
+                )
+            )
+        else:
+            optional_params.append(
+                inspect.Parameter(
+                    name,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    annotation=annotation,
+                    default=prop.get('default', None),
+                )
+            )
+
+    # Parameters without defaults must precede those with defaults.
+    annotations['return'] = str
+    signature = inspect.Signature(required_params + optional_params, return_annotation=str)
+    return signature, annotations
+
+
 def create_lambda_tool_from_discovery(
     function_name: str,
     tool_def: Dict[str, Any]
 ) -> None:
     """
     Create an MCP tool from a discovered tool definition.
-    
+
     Args:
         function_name: Name of the Lambda function
         tool_def: Tool definition from discovery response
@@ -288,38 +362,51 @@ def create_lambda_tool_from_discovery(
     if not tool_name:
         logger.warning(f'Tool definition missing name in function {function_name}')
         return
-    
+
     # Sanitize tool name
     sanitized_name = sanitize_tool_name(tool_name)
-    
+
     description = tool_def.get('description', f'Tool {tool_name} from Lambda function {function_name}')
     input_schema = tool_def.get('inputSchema', {})
-    
-    # Create the tool handler function
-    async def tool_handler(parameters: dict) -> str:
-        """Dynamically created tool handler."""
-        return await invoke_lambda_tool_impl(function_name, tool_name, parameters)
-    
-    # Set the function's documentation
-    tool_handler.__doc__ = description
-    
+
+    synthesised = build_signature_from_schema(input_schema)
+
+    if synthesised:
+        # Advertise the tool's real parameters as top-level fields. The LLM calls the
+        # tool with flat arguments and ChukMCPServer dispatches them as keyword args.
+        signature, annotations = synthesised
+
+        async def tool_handler(**kwargs) -> str:
+            """Dynamically created tool handler."""
+            # Drop omitted optionals (passed as None) so we forward only what was
+            # actually supplied to the downstream Lambda tool.
+            arguments = {key: value for key, value in kwargs.items() if value is not None}
+            return await invoke_lambda_tool_impl(function_name, tool_name, arguments)
+
+        tool_handler.__signature__ = signature
+        tool_handler.__annotations__ = annotations
+        # Schema is advertised natively, so keep the description clean.
+        full_description = description
+    else:
+        # No usable schema: fall back to a single `parameters` object argument.
+        async def tool_handler(parameters: dict) -> str:
+            """Dynamically created tool handler."""
+            return await invoke_lambda_tool_impl(function_name, tool_name, parameters)
+
+        if input_schema:
+            full_description = f'{description}\n\nInput Schema:\n{json.dumps(input_schema, indent=2)}'
+        else:
+            full_description = description
+
+    tool_handler.__doc__ = full_description
+
     # Use the tool name directly from the Lambda function
     full_tool_name = sanitized_name
-    
+
     logger.info(f'Registering tool {full_tool_name} from function {function_name}')
-    
-    # Register the tool with ChukMCPServer
-    # The tool decorator will handle the schema from the function signature
-    # We'll pass the input schema as part of the description for now
-    if input_schema:
-        full_description = f'{description}\n\nInput Schema:\n{json.dumps(input_schema, indent=2)}'
-    else:
-        full_description = description
-    
-    tool_handler.__doc__ = full_description
-    
+
     # Apply the decorator manually
-    decorated_function = mcp.tool(name=full_tool_name)(tool_handler)
+    mcp.tool(name=full_tool_name)(tool_handler)
 
 
 def create_legacy_lambda_tool(function_name: str, description: str, schema_arn: Optional[str] = None):

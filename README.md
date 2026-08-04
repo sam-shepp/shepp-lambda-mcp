@@ -20,7 +20,9 @@ Lambda functions can now expose **multiple tools** instead of being limited to o
 - One Lambda function can provide multiple related tools (e.g., different search types)
 - Better tool documentation with detailed descriptions and JSON schemas
 - Cleaner separation of concerns within Lambda functions
-- Type-safe tool parameters with schema validation
+- A discovered tool's `inputSchema` is advertised to the model as flat, top-level
+  parameters, so LLMs call it with natural arguments (e.g. `{ "city": "London" }`)
+  rather than nesting them under a generic `parameters` object
 
 See [TOOL_DISCOVERY_PROTOCOL.md](TOOL_DISCOVERY_PROTOCOL.md) for implementation details.
 
@@ -220,6 +222,11 @@ If only one of `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE`, then no function is 
 - Lambda functions can expose multiple tools by implementing the discovery protocol
 - Each tool has its own name, description, and input schema
 - Tool names are used directly as defined in the Lambda function (e.g., `race_vector_search`)
+- The tool's `inputSchema` properties are advertised as flat, top-level parameters, so
+  the model calls the tool with natural arguments (e.g. `{ "city": "London" }`). The
+  server forwards those to the Lambda as `{"tool": "<name>", "arguments": { ... }}`
+- Tools whose `inputSchema` has no usable properties fall back to a single `parameters`
+  object argument
 - See [TOOL_DISCOVERY_PROTOCOL.md](TOOL_DISCOVERY_PROTOCOL.md) for implementation details
 
 **Legacy Mode (Backward Compatible):**
