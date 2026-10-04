@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-10-04
+
+### Fixed
+
+- Zero-argument discovered tools no longer get a spurious required `parameters: dict` argument from the generic fallback wrapper. `build_signature_from_schema` previously returned `None` both for a schema with no properties (a genuinely zero-argument tool) and for one whose properties couldn't be synthesised into a signature, so `create_lambda_tool_from_discovery` treated both the same way and fell back to `tool_handler(parameters: dict)` with no default. ChukMCPServer then advertised `parameters` as a required object field, so a correct zero-arg call with `arguments={}` failed validation with `Invalid parameter 'parameters': expected object, got NoneType`. The two cases are now distinguished: a schema with missing/empty properties registers a true zero-parameter handler that invokes the Lambda tool with `{}`.
+- The generic `parameters` fallback wrapper (now reserved for schemas that genuinely can't be synthesised, e.g. a property name that isn't a valid Python identifier) defaults `parameters` to `None` instead of leaving it required.
+- A legacy caller still sending `{"parameters": {}}` to a zero-arg tool is unaffected: ChukMCPServer only validates arguments against the handler's declared parameters, so the stray key is ignored rather than rejected.
+
 ## [2.3.0] - 2026-08-03
 
 ### Changed
