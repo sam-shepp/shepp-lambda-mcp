@@ -146,15 +146,66 @@ class TestCreateLambdaToolFromDiscovery:
         # 'units' was omitted, so it must not be forwarded to the Lambda tool.
         mock_impl.assert_awaited_once_with('my-function', 'weather', {'city': 'London'})
 
-    def test_no_schema_falls_back_to_wrapper(self, server_module):
-        """A tool without an inputSchema keeps the single `parameters` wrapper."""
+    def test_no_schema_registers_zero_arg_tool(self, server_module):
+        """A tool without an inputSchema is a genuine zero-argument tool."""
         create_lambda_tool_from_discovery(
             'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
         )
 
         tool = _tool_by_name(server_module, 'do_thing')
         advertised = tool.to_mcp_format()['inputSchema']
-        assert 'parameters' in advertised['properties']
+        assert advertised.get('properties', {}) == {}
+        assert 'parameters' not in advertised.get('properties', {})
+
+    @pytest.mark.asyncio
+    async def test_zero_arg_tool_called_with_empty_dict_forwards_empty_dict(self, server_module):
+        """Calling a zero-arg tool with `{}` succeeds and forwards `{}` downstream."""
+        create_lambda_tool_from_discovery(
+            'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
+        )
+        tool = _tool_by_name(server_module, 'do_thing')
+
+        with patch.object(
+            server_module, 'invoke_lambda_tool_impl', new=AsyncMock(return_value='delegated')
+        ) as mock_impl:
+            result = await tool.execute({})
+
+        assert result == 'delegated'
+        mock_impl.assert_awaited_once_with('my-function', 'do-thing', {})
+
+    @pytest.mark.asyncio
+    async def test_zero_arg_tool_called_with_legacy_parameters_key_still_succeeds(
+        self, server_module
+    ):
+        """A legacy caller sending `{"parameters": {}}` to a zero-arg tool still works.
+
+        ChukMCPServer validates arguments against the handler's declared parameters
+        only, so the stray `parameters` key is ignored rather than rejected.
+        """
+        create_lambda_tool_from_discovery(
+            'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
+        )
+        tool = _tool_by_name(server_module, 'do_thing')
+
+        with patch.object(
+            server_module, 'invoke_lambda_tool_impl', new=AsyncMock(return_value='delegated')
+        ) as mock_impl:
+            result = await tool.execute({'parameters': {}})
+
+        assert result == 'delegated'
+        mock_impl.assert_awaited_once_with('my-function', 'do-thing', {})
+
+    def test_empty_properties_registers_zero_arg_tool(self, server_module):
+        """An explicit empty `properties` dict is also treated as zero-argument."""
+        schema = {'type': 'object', 'properties': {}}
+        create_lambda_tool_from_discovery(
+            'my-function',
+            {'name': 'do-thing', 'description': 'Does a thing', 'inputSchema': schema},
+        )
+
+        tool = _tool_by_name(server_module, 'do_thing')
+        advertised = tool.to_mcp_format()['inputSchema']
+        assert advertised.get('properties', {}) == {}
 
     def test_invalid_identifier_property_falls_back_to_wrapper(self, server_module):
         """A property name that isn't a valid identifier falls back to the wrapper."""
@@ -170,11 +221,13 @@ class TestCreateLambdaToolFromDiscovery:
 
     @pytest.mark.asyncio
     async def test_wrapper_handler_delegates_to_tool_impl(self, server_module):
-        """The fallback wrapper handler still delegates to invoke_lambda_tool_impl."""
+        """The fallback wrapper handler (unparseable schema) delegates with the given dict."""
+        schema = {'type': 'object', 'properties': {'bad-name': {'type': 'string'}}}
         create_lambda_tool_from_discovery(
-            'my-function', {'name': 'do-thing', 'description': 'Does a thing'}
+            'my-function',
+            {'name': 'weird', 'description': 'Weird', 'inputSchema': schema},
         )
-        tool = _tool_by_name(server_module, 'do_thing')
+        tool = _tool_by_name(server_module, 'weird')
 
         with patch.object(
             server_module, 'invoke_lambda_tool_impl', new=AsyncMock(return_value='delegated')
@@ -182,7 +235,25 @@ class TestCreateLambdaToolFromDiscovery:
             result = await tool.handler({'a': 1})
 
         assert result == 'delegated'
-        mock_impl.assert_awaited_once_with('my-function', 'do-thing', {'a': 1})
+        mock_impl.assert_awaited_once_with('my-function', 'weird', {'a': 1})
+
+    @pytest.mark.asyncio
+    async def test_wrapper_handler_defaults_missing_parameters_to_empty_dict(self, server_module):
+        """The fallback wrapper isn't spuriously required: omitting it forwards `{}`."""
+        schema = {'type': 'object', 'properties': {'bad-name': {'type': 'string'}}}
+        create_lambda_tool_from_discovery(
+            'my-function',
+            {'name': 'weird', 'description': 'Weird', 'inputSchema': schema},
+        )
+        tool = _tool_by_name(server_module, 'weird')
+
+        with patch.object(
+            server_module, 'invoke_lambda_tool_impl', new=AsyncMock(return_value='delegated')
+        ) as mock_impl:
+            result = await tool.execute({})
+
+        assert result == 'delegated'
+        mock_impl.assert_awaited_once_with('my-function', 'weird', {})
 
 
 class TestBuildSignatureFromSchema:
@@ -225,10 +296,15 @@ class TestBuildSignatureFromSchema:
             'return': str,
         }
 
-    def test_empty_or_missing_properties_returns_none(self):
-        """A schema with no properties yields no signature."""
-        assert build_signature_from_schema({'type': 'object'}) is None
-        assert build_signature_from_schema({'type': 'object', 'properties': {}}) is None
+    def test_empty_or_missing_properties_returns_zero_arg_sentinel(self):
+        """A schema with no properties is a genuine zero-argument tool, not a fallback."""
+        from awslabs.lambda_tool_mcp_server.server import _ZERO_ARG_SCHEMA
+
+        assert build_signature_from_schema({'type': 'object'}) is _ZERO_ARG_SCHEMA
+        assert (
+            build_signature_from_schema({'type': 'object', 'properties': {}})
+            is _ZERO_ARG_SCHEMA
+        )
 
     def test_non_dict_returns_none(self):
         """A non-dict schema yields no signature."""
@@ -238,6 +314,11 @@ class TestBuildSignatureFromSchema:
     def test_invalid_identifier_returns_none(self):
         """A property name that isn't a valid identifier yields no signature."""
         schema = {'type': 'object', 'properties': {'bad-name': {'type': 'string'}}}
+        assert build_signature_from_schema(schema) is None
+
+    def test_non_dict_properties_returns_none(self):
+        """Non-empty but non-dict `properties` can't be synthesised either."""
+        schema = {'type': 'object', 'properties': 'not-a-dict'}
         assert build_signature_from_schema(schema) is None
 
 

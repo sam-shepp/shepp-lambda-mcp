@@ -25,6 +25,11 @@ from chuk_mcp_server import ChukMCPServer
 from typing import Optional, Dict, List, Any
 
 
+# Sentinel returned by build_signature_from_schema for a schema that declares no
+# properties at all: a genuinely zero-argument tool, as opposed to one whose schema
+# simply couldn't be synthesised into a signature (which returns None).
+_ZERO_ARG_SCHEMA = object()
+
 # Map JSON Schema primitive types to Python annotations so a discovered tool's
 # input schema can be turned into a real function signature.
 _JSON_TYPE_TO_PY = {
@@ -299,15 +304,19 @@ def build_signature_from_schema(input_schema: Dict[str, Any]):
         input_schema: The discovered tool's JSON Schema (an ``object`` schema)
 
     Returns:
-        A ``(signature, annotations)`` tuple, or ``None`` if the schema has no usable
-        properties or contains a property name that isn't a valid Python identifier
-        (in which case the caller should fall back to a generic wrapper).
+        A ``(signature, annotations)`` tuple; ``_ZERO_ARG_SCHEMA`` if the schema
+        declares no properties at all (a genuinely zero-argument tool); or ``None``
+        if the schema has properties but they can't be synthesised into a signature,
+        e.g. a property name that isn't a valid Python identifier (in which case the
+        caller should fall back to a generic wrapper).
     """
     if not isinstance(input_schema, dict):
         return None
 
     properties = input_schema.get('properties')
-    if not isinstance(properties, dict) or not properties:
+    if properties is None or (isinstance(properties, dict) and not properties):
+        return _ZERO_ARG_SCHEMA
+    if not isinstance(properties, dict):
         return None
 
     required = set(input_schema.get('required', []) or [])
@@ -371,7 +380,19 @@ def create_lambda_tool_from_discovery(
 
     synthesised = build_signature_from_schema(input_schema)
 
-    if synthesised:
+    if synthesised is _ZERO_ARG_SCHEMA:
+        # Genuinely zero-argument tool: register a handler that takes no parameters
+        # at all, so ChukMCPServer doesn't advertise (or require) a `parameters`
+        # argument that the tool was never going to use. A legacy caller that still
+        # sends `{"parameters": {}}` is unaffected: ChukMCPServer only validates
+        # arguments against the handler's declared parameters, so the stray key is
+        # simply ignored rather than rejected.
+        async def tool_handler() -> str:
+            """Dynamically created tool handler."""
+            return await invoke_lambda_tool_impl(function_name, tool_name, {})
+
+        full_description = description
+    elif synthesised:
         # Advertise the tool's real parameters as top-level fields. The LLM calls the
         # tool with flat arguments and ChukMCPServer dispatches them as keyword args.
         signature, annotations = synthesised
@@ -388,10 +409,14 @@ def create_lambda_tool_from_discovery(
         # Schema is advertised natively, so keep the description clean.
         full_description = description
     else:
-        # No usable schema: fall back to a single `parameters` object argument.
-        async def tool_handler(parameters: dict) -> str:
+        # Schema has properties but they couldn't be synthesised (e.g. a property
+        # name that isn't a valid identifier): fall back to a single `parameters`
+        # object argument. Default it to None rather than leaving it required, so a
+        # caller that omits it (or sends `{}`) doesn't trip ChukMCPServer's required-
+        # parameter validation; treat a missing value as an empty dict.
+        async def tool_handler(parameters: dict = None) -> str:
             """Dynamically created tool handler."""
-            return await invoke_lambda_tool_impl(function_name, tool_name, parameters)
+            return await invoke_lambda_tool_impl(function_name, tool_name, parameters or {})
 
         if input_schema:
             full_description = f'{description}\n\nInput Schema:\n{json.dumps(input_schema, indent=2)}'
