@@ -8,7 +8,7 @@ including the tool-discovery protocol and the legacy single-tool fallback.
 
 | File | Covers |
 | --- | --- |
-| `test_server.py` | Pure helpers: `validate_function_name`, `sanitize_tool_name`, `format_lambda_response` (tool-aware, 3-arg), and the `main` entrypoint |
+| `test_server.py` | Pure helpers: `validate_function_name`, `sanitize_tool_name`, `format_lambda_response` (plain JSON/text, compatibility 3-arg signature), and the `main` entrypoint |
 | `test_invoke.py` | `invoke_lambda_tool_impl` (the `{'tool', 'arguments'}` envelope + string-parameter parsing) and the legacy `invoke_lambda_function_impl` |
 | `test_discovery.py` | `discover_tools_from_lambda`, `create_lambda_tool_from_discovery`, and `create_legacy_lambda_tool`, including that registered handlers delegate to the right invoke impl |
 | `test_register.py` | `register_lambda_functions` (prefix/list/tag filters, incomplete-tag warning, discovery-vs-legacy path, error handling), `filter_functions_by_tag`, and `get_all_lambda_functions` pagination |

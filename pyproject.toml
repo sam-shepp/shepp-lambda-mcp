@@ -1,6 +1,6 @@
 [project]
 name = "shepp-lambda-mcp"
-version = "2.3.1"
+version = "2.3.2"
 description = "A Model Context Protocol (MCP) server for AWS Lambda Tools using ChukMCPServer"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -99,7 +99,7 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "2.3.1"
+version = "2.3.2"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",

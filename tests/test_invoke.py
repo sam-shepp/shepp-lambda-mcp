@@ -29,8 +29,9 @@ class TestInvokeLambdaToolImpl:
             InvocationType='RequestResponse',
             Payload=json.dumps({'tool': 'my-tool', 'arguments': {'param': 'value'}}),
         )
-        assert 'Tool my-tool (function test-function-1) returned:' in result
-        assert '"result": "success"' in result
+        assert result == '{"result":"success"}'
+        assert 'test-function-1' not in result
+        assert 'my-tool' not in result
 
     @pytest.mark.asyncio
     async def test_function_error(self, mock_lambda_client):
@@ -46,8 +47,7 @@ class TestInvokeLambdaToolImpl:
         with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             result = await invoke_lambda_tool_impl('test-function-2', 'my-tool', {})
 
-        assert 'returned payload:' in result
-        assert 'Non-JSON response' in result
+        assert result == 'Non-JSON response'
 
     @pytest.mark.asyncio
     async def test_string_parameters_are_parsed(self, mock_lambda_client):
@@ -96,8 +96,8 @@ class TestInvokeLambdaFunctionImpl:
             InvocationType='RequestResponse',
             Payload=json.dumps({'param': 'value'}),
         )
-        assert 'Function test-function-1 returned:' in result
-        assert '"result": "success"' in result
+        assert result == '{"result":"success"}'
+        assert 'test-function-1' not in result
 
     @pytest.mark.asyncio
     async def test_function_error(self, mock_lambda_client):
@@ -113,4 +113,4 @@ class TestInvokeLambdaFunctionImpl:
         with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             result = await invoke_lambda_function_impl('test-function-2', {'param': 'value'})
 
-        assert "Function test-function-2 returned payload: b'Non-JSON response'" == result
+        assert result == 'Non-JSON response'
