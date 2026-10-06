@@ -77,36 +77,47 @@ class TestSanitizeToolName:
 
 
 class TestFormatLambdaResponse:
-    """Tests for the format_lambda_response function (tool-aware, 3-arg)."""
+    """Tests for plain successful Lambda payload formatting."""
 
-    def test_json_payload(self):
-        """A JSON payload is pretty-printed and labelled with tool and function."""
+    def test_json_object_is_compact_and_unlabelled(self):
         payload = json.dumps({'result': 'success'}).encode()
-        result = format_lambda_response('test-function', 'my-tool', payload)
-        assert 'Tool my-tool (function test-function) returned:' in result
-        assert '"result": "success"' in result
+        result = format_lambda_response('internal-function', 'my-tool', payload)
+        assert result == '{"result":"success"}'
+        assert 'internal-function' not in result
+        assert 'my-tool' not in result
 
-    def test_non_json_payload(self):
-        """A non-JSON payload is returned raw."""
+    @pytest.mark.parametrize(
+        ('value', 'expected'),
+        [
+            ([1, 2, 3], '[1,2,3]'),
+            ('hello', '"hello"'),
+            (42, '42'),
+            (True, 'true'),
+            (None, 'null'),
+        ],
+    )
+    def test_json_values_are_compact(self, value, expected):
+        payload = json.dumps(value).encode()
+        assert format_lambda_response('function', 'tool', payload) == expected
+
+    def test_unicode_is_not_ascii_escaped(self):
+        payload = json.dumps({'city': 'Montréal'}).encode()
+        assert format_lambda_response('function', 'tool', payload) == '{"city":"Montréal"}'
+
+    def test_non_json_utf8_is_undecorated(self):
         payload = b'Non-JSON response'
-        result = format_lambda_response('test-function', 'my-tool', payload)
-        assert (
-            "Tool my-tool (function test-function) returned payload: b'Non-JSON response'"
-            == result
-        )
+        assert format_lambda_response('function', 'tool', payload) == 'Non-JSON response'
 
-    def test_invalid_json_payload(self):
-        """A malformed JSON payload falls back to the raw representation."""
+    def test_malformed_json_is_plain_text(self):
         payload = b'{invalid json}'
-        result = format_lambda_response('test-function', 'my-tool', payload)
-        assert 'Tool my-tool (function test-function) returned payload:' in result
+        assert format_lambda_response('function', 'tool', payload) == '{invalid json}'
 
-    def test_unicode_decode_error(self):
-        """A payload that is invalid UTF-8 is handled without raising."""
-        payload = b'\x80\x81\x82\x83'
-        result = format_lambda_response('test-function', 'my-tool', payload)
-        assert 'Tool my-tool (function test-function) returned payload:' in result
-        assert str(payload) in result
+    def test_invalid_utf8_has_safe_undecorated_representation(self):
+        payload = bytes([0x80, 0x81, 0x82, 0x83])
+        result = format_lambda_response('function', 'tool', payload)
+        assert result == repr(payload)
+        assert 'function' not in result
+        assert 'tool' not in result
 
 
 class TestMain:

@@ -123,7 +123,7 @@ schemas_client = session.client('schemas', config=boto_config)
 
 mcp = ChukMCPServer(
     name='shepp-lambda-mcp',
-    version='2.3.1',
+    version='2.3.2',
     description="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
     transport='stdio',
@@ -155,14 +155,20 @@ def sanitize_tool_name(name: str) -> str:
 
 
 def format_lambda_response(function_name: str, tool_name: str, payload: bytes) -> str:
-    """Format the Lambda function response payload."""
+    """Return successful Lambda payloads as plain compact JSON or undecorated text.
+
+    ``function_name`` and ``tool_name`` remain in the signature for compatibility
+    with existing callers, but successful responses intentionally omit those
+    internal identifiers.
+    """
+    del function_name, tool_name
     try:
-        # Try to parse the payload as JSON
         payload_json = json.loads(payload)
-        return f'Tool {tool_name} (function {function_name}) returned: {json.dumps(payload_json, indent=2)}'
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        # Return raw payload if not JSON
-        return f'Tool {tool_name} (function {function_name}) returned payload: {payload}'
+    except UnicodeDecodeError:
+        return repr(payload)
+    except json.JSONDecodeError:
+        return payload.decode('utf-8')
+    return json.dumps(payload_json, separators=(',', ':'), ensure_ascii=False)
 
 
 def discover_tools_from_lambda(function_name: str) -> Optional[List[Dict[str, Any]]]:
@@ -283,12 +289,7 @@ async def invoke_lambda_function_impl(function_name: str, parameters: dict) -> s
         return error_message
 
     payload = response['Payload'].read()
-    # Format the response payload
-    try:
-        payload_json = json.loads(payload)
-        return f'Function {function_name} returned: {json.dumps(payload_json, indent=2)}'
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return f'Function {function_name} returned payload: {payload}'
+    return format_lambda_response(function_name, function_name, payload)
 
 
 def build_signature_from_schema(input_schema: Dict[str, Any]):
